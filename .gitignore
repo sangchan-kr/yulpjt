@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+
+# OS / Editor
+.DS_Store
+.vscode/
+*.swp
+
+# Data / Logs
+*.log
+data/

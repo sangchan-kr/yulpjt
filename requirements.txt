@@ -1,0 +1,17 @@
+# GUI
+PySide6==6.8.*
+
+# GPIO (Pi 5에서는 lgpio 백엔드)
+gpiozero
+lgpio
+rpi-lgpio  # RPi.GPIO API shim (hx711-multi 호환용)
+
+# RS-485 / Modbus (ADAM 모듈)
+pymodbus>=3.7,<4
+pyserial
+
+# Load cell ADC
+hx711-multi
+
+# Utilities
+pyyaml
