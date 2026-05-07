@@ -1,0 +1,12 @@
+[Unit]
+Description=Industrial Control HMI
+
+[Service]
+Type=simple
+WorkingDirectory=/home/yul/control-system
+Environment=QT_QPA_PLATFORM=wayland
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/yul/control-system/.venv/bin/python -m control_system
+Restart=on-failure
+RestartSec=3

@@ -9,5 +9,5 @@ def main() -> int:
     app.setApplicationName("Control System")
     cfg = Config()
     window = MainWindow(cfg)
-    window.show()
+    window.showFullScreen()
     return app.exec()

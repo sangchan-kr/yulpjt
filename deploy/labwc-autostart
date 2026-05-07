@@ -1,0 +1,6 @@
+#!/bin/sh
+# labwc autostart — runs once when labwc starts the user session.
+# Pass Wayland env into the user systemd instance, then launch the app.
+
+systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR
+systemctl --user start control-system.service

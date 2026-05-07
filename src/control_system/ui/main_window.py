@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QCursor, QKeyEvent
 from PySide6.QtWidgets import (
     QMainWindow, QLabel, QVBoxLayout, QGridLayout,
     QPushButton, QWidget,
@@ -15,6 +16,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Control System")
         self.resize(1024, 600)
+        self.setCursor(QCursor(Qt.CursorShape.BlankCursor))
 
         self.loadcell = LoadCell(
             cfg.hx711_dt_pin, cfg.hx711_sck_pin, mock=cfg.mock_hardware
@@ -58,6 +60,7 @@ class MainWindow(QMainWindow):
         for i in range(AdamRelay.NUM_CHANNELS):
             btn = QPushButton(f"Relay {i + 1}")
             btn.setCheckable(True)
+            btn.setMinimumHeight(60)
             btn.toggled.connect(lambda on, ch=i: self.do.set_channel(ch, on))
             self.do_buttons.append(btn)
             do_grid.addWidget(btn, i // 4, i % 4)
@@ -74,3 +77,9 @@ class MainWindow(QMainWindow):
         self.weight_label.setText(f"{self.loadcell.read_grams():.1f} g")
         for lamp, state in zip(self.di_lamps, self.di.read_all()):
             lamp.setStyleSheet(self._lamp_style(state))
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(event)
