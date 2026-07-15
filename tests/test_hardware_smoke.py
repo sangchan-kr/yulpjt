@@ -1,0 +1,126 @@
+"""Phase A 하드웨어 계층 스모크 테스트 (mock 전용, 서드파티 의존성 없음).
+
+pytest 로도, `python tests/test_hardware_smoke.py` 로도 실행된다.
+"""
+
+import os
+import sys
+import tempfile
+
+# 설치 없이 실행할 수 있게 src 를 경로에 추가.
+_SRC = os.path.join(os.path.dirname(__file__), "..", "src")
+if _SRC not in sys.path:
+    sys.path.insert(0, os.path.abspath(_SRC))
+
+from control_system.config import Config
+from control_system.hardware.adam4017 import Adam4017
+from control_system.hardware.adam4055 import Adam4055
+from control_system.hardware.loadcell import LoadCell
+from control_system.hardware.signals import AI, DI1, DI2, DO1, DO2, IO
+
+
+def _build(mock_invert_vacuum=False):
+    cfg = Config()
+    a1 = Adam4055(None, cfg.node_adam1, mock=True, name="#1")
+    a2 = Adam4055(None, cfg.node_adam2, mock=True, name="#2")
+    ai = Adam4017(None, cfg.node_adam4017, mock=True)
+    invert = {DI2.VACUUM_OK} if mock_invert_vacuum else frozenset()
+    io = IO(a1, a2, ai, input_invert=invert)
+    return cfg, a1, a2, ai, io
+
+
+def test_loadcell_conversion():
+    cfg, a1, a2, ai, io = _build()
+    tmp = os.path.join(tempfile.gettempdir(), "cal_test.json")
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    lc = LoadCell(ai, cfg.loadcell_ai_channel, cfg.loadcell_full_scale_kgf, tmp)
+
+    # 4 mA → 0 kgf, 20 mA → 1000 kgf, 12 mA → 500 kgf
+    ai.set_mock_ma(0, 4.0)
+    assert abs(lc.read_kgf() - 0.0) < 1e-6, lc.read_kgf()
+    ai.set_mock_ma(0, 20.0)
+    assert abs(lc.read_kgf() - 1000.0) < 1e-6, lc.read_kgf()
+    ai.set_mock_ma(0, 12.0)
+    assert abs(lc.read_kgf() - 500.0) < 1e-6, lc.read_kgf()
+
+
+def test_loadcell_tare_and_persist():
+    cfg, a1, a2, ai, io = _build()
+    tmp = os.path.join(tempfile.gettempdir(), "cal_test2.json")
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    lc = LoadCell(ai, 0, cfg.loadcell_full_scale_kgf, tmp)
+
+    ai.set_mock_ma(0, 5.0)              # 62.5 kgf 상당
+    lc.tare()                          # 영점 = 62.5
+    assert abs(lc.read_kgf()) < 1e-6   # tare 직후 0
+    ai.set_mock_ma(0, 6.0)             # +62.5 kgf
+    assert abs(lc.read_kgf() - 62.5) < 1e-6, lc.read_kgf()
+
+    # 새 인스턴스가 저장된 zero_offset 을 복원하는지
+    lc2 = LoadCell(ai, 0, cfg.loadcell_full_scale_kgf, tmp)
+    assert abs(lc2.zero_offset - 62.5) < 1e-6, lc2.zero_offset
+
+
+def test_loadcell_wire_break():
+    cfg, a1, a2, ai, io = _build()
+    lc = LoadCell(ai, 0, cfg.loadcell_full_scale_kgf, os.path.join(tempfile.gettempdir(), "cal_x.json"))
+    ai.set_mock_ma(0, 4.5)
+    assert lc.current_valid()
+    ai.set_mock_ma(0, 0.0)             # 단선
+    assert not lc.current_valid()
+
+
+def test_di_named_read():
+    cfg, a1, a2, ai, io = _build()
+    a1.set_mock_di(int(DI1.MODE_AUTO), True)
+    a1.set_mock_di(int(DI1.SOL_ENABLE_OK), True)
+    a2.set_mock_di(int(DI2.VACUUM_OK), True)
+    io.refresh_inputs()
+    assert io.di(DI1.MODE_AUTO) is True
+    assert io.di(DI1.AUTO_START_PB) is False
+    assert io.di(DI1.SOL_ENABLE_OK) is True
+    assert io.di(DI2.VACUUM_OK) is True
+
+
+def test_di_inversion():
+    cfg, a1, a2, ai, io = _build(mock_invert_vacuum=True)
+    a2.set_mock_di(int(DI2.VACUUM_OK), False)   # NPN: 하드웨어 False 지만 반전되어 True
+    io.refresh_inputs()
+    assert io.di(DI2.VACUUM_OK) is True
+    a2.set_mock_di(int(DI2.VACUUM_OK), True)
+    io.refresh_inputs()
+    assert io.di(DI2.VACUUM_OK) is False
+
+
+def test_do_stage_flush():
+    cfg, a1, a2, ai, io = _build()
+    io.set(DO1.K_VALVE_DOWN, True)
+    io.set(DO2.K_VACUUM_ON, True)
+    # flush 전에는 모듈에 반영 안 됨
+    assert a1.read_do()[int(DO1.K_VALVE_DOWN)] is False
+    io.flush_outputs()
+    assert a1.read_do()[int(DO1.K_VALVE_DOWN)] is True
+    assert a2.read_do()[int(DO2.K_VACUUM_ON)] is True
+    assert a1.read_do()[int(DO1.K_VALVE_UP)] is False
+
+    # all_outputs_off + flush → 전부 OFF
+    io.all_outputs_off()
+    io.flush_outputs()
+    assert not any(a1.read_do())
+    assert not any(a2.read_do())
+
+
+def _run_all():
+    fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
+    passed = 0
+    for fn in fns:
+        fn()
+        print(f"  PASS  {fn.__name__}")
+        passed += 1
+    print(f"\n{passed}/{len(fns)} passed")
+
+
+if __name__ == "__main__":
+    _run_all()
