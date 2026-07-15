@@ -7,6 +7,25 @@
 
 ---
 
+## 0. 다른 기기의 Claude Code 에서 이어가기
+
+Claude Code 대화 자체는 기기 로컬(`~/.claude`)에만 저장되며 다른 노트북으로
+자동 동기화되지 않는다. **이전 채팅 세션을 그대로 옮길 수는 없다.** 대신 이
+repo(특히 이 문서)를 "단일 진실 소스"로 삼아 새 대화에서 맥락을 복원한다.
+
+다른 노트북에서:
+
+1. `git clone https://github.com/sangchan-kr/yulpjt.git && cd yulpjt`
+2. `git checkout feature/v1.12-refactor`
+3. 그 폴더에서 Claude Code 를 열고 이렇게 시작한다:
+   > "yulpjt v1.12 이어서 개발하자. `docs/dev-status.md` 랑 `docs/refactor-plan-v1.12.md` 읽고 현황 파악해줘."
+4. 아래 3절대로 venv 만들고 테스트가 그린인지 확인한 뒤 5절(Phase D)로 진행.
+
+참고: 개인 메모리(`~/.claude/.../memory`)는 이 repo 에 없다(기기 로컬 + 타
+프로젝트 정보 포함). 그래서 재개에 필요한 모든 사실을 이 문서에 담아 둔다.
+
+---
+
 ## 1. 지금까지 한 것 (Phase A → B → C 완료, mock 검증)
 
 | 단계 | 커밋 | 내용 |
