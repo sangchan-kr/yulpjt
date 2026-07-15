@@ -3,11 +3,13 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from .config import Config
+from .core.controller import Controller
 from .hardware.adam4017 import Adam4017
 from .hardware.adam4055 import Adam4055
 from .hardware.loadcell import LoadCell
 from .hardware.modbus_hub import ModbusHub
 from .hardware.signals import IO, DI2
+from .ui.logging_csv import CsvLogger
 from .ui.main_window import MainWindow
 
 
@@ -41,7 +43,9 @@ def main() -> int:
     app.setApplicationName("Control System")
 
     hub, a1, a2, ai, io, loadcell = build_io_stack(cfg)
-    window = MainWindow(cfg, io, loadcell, a1, a2, ai)
+    controller = Controller(cfg, io, loadcell)
+    logger = CsvLogger("data/run_log.csv")
+    window = MainWindow(cfg, controller, a1, a2, ai, logger)
 
     if cfg.mock_hardware:
         window.resize(1024, 600)   # 노트북 개발: 창 모드

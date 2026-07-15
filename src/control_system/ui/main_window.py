@@ -1,129 +1,181 @@
-"""Phase A 임시 HMI — 새 하드웨어 계층이 살아있는지 눈으로 보는 최소 화면.
+"""정식 HMI (v1.12 §10·15) — 컨트롤러 연동.
 
-정식 HMI(상태머신 연동, 모드/카운트/진공/알람/시그널타워/Safety Reset 등)는
-Phase C 에서 재작성한다. 지금은:
-  - 로드셀 하중(kgf)/전류(mA) 표시
-  - DI1/DI2 램프 (신호 이름)
-  - DO1/DO2 토글 버튼 (stage→flush)
-  - mock 모드일 때 DI 를 손으로 토글하는 체크박스 (시뮬레이터 맛보기)
+QTimer 로 controller.scan() 을 주기 실행하고 상태를 화면에 그린다.
+출력은 컨트롤러만 구동한다(HMI 는 명령 플래그만 전달). 진공은 HMI 토글 버튼
+하나로 수동 제어한다(결정3). mock 모드에서는 하단에 입력 시뮬레이터를 붙인다.
 """
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCursor, QKeyEvent
 from PySide6.QtWidgets import (
-    QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-    QMainWindow, QPushButton, QVBoxLayout, QWidget,
+    QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
+    QPushButton, QVBoxLayout, QWidget,
 )
 
 from ..config import Config
-from ..hardware.signals import AI, DI1, DI2, DO1, DO2, IO
+from ..core.controller import Controller
+from ..core.states import State
+from ..hardware.signals import DI1
+from .logging_csv import CsvLogger
+from .sim_panel import SimPanel
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, cfg: Config, io: IO, loadcell, adam1, adam2, adam4017) -> None:
+    def __init__(self, cfg: Config, controller: Controller, adam1, adam2, adam4017,
+                 logger: CsvLogger) -> None:
         super().__init__()
         self.cfg = cfg
-        self.io = io
-        self.loadcell = loadcell
-        self.a1 = adam1
-        self.a2 = adam2
-        self.setWindowTitle("Control System (v1.12 — Phase A)")
+        self.ctrl = controller
+        self.logger = logger
+        self._prev_count = controller.count
+        self.setWindowTitle("공압 가압 제어 시스템 (v1.12)")
         if not cfg.mock_hardware:
             self.setCursor(QCursor(Qt.CursorShape.BlankCursor))
 
-        self._di_lamps: dict = {}
-        self._build_ui()
+        self._build_ui(adam1, adam2, adam4017)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(cfg.poll_ms)
 
     # ------------------------------------------------------------------ UI
-    def _build_ui(self) -> None:
+    def _build_ui(self, a1, a2, ai) -> None:
         central = QWidget()
-        outer = QVBoxLayout(central)
+        root = QVBoxLayout(central)
 
-        self.load_label = QLabel("--- kgf")
-        self.load_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.load_label.setStyleSheet("font-size: 40px; font-weight: bold;")
-        outer.addWidget(self.load_label)
+        top = QHBoxLayout()
+        top.addWidget(self._tower_box(), 0)
+        top.addWidget(self._load_box(), 1)
+        root.addLayout(top)
 
-        self.ma_label = QLabel("--- mA")
-        self.ma_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        outer.addWidget(self.ma_label)
-
-        di_row = QHBoxLayout()
-        di_row.addWidget(self._di_group("ADAM #1 DI", DI1))
-        di_row.addWidget(self._di_group("ADAM #2 DI", DI2))
-        outer.addLayout(di_row)
-
-        do_row = QHBoxLayout()
-        do_row.addWidget(self._do_group("ADAM #1 DO", DO1))
-        do_row.addWidget(self._do_group("ADAM #2 DO", DO2))
-        outer.addLayout(do_row)
+        root.addWidget(self._status_box())
+        root.addWidget(self._button_box())
 
         if self.cfg.mock_hardware:
-            outer.addWidget(self._mock_group())
+            root.addWidget(SimPanel(self.cfg, a1, a2, ai))
 
         self.setCentralWidget(central)
 
-    def _di_group(self, title: str, enum_cls) -> QGroupBox:
-        box = QGroupBox(title)
-        grid = QGridLayout(box)
-        for i, sig in enumerate(enum_cls):
-            lamp = QLabel(sig.name)
+    def _tower_box(self) -> QGroupBox:
+        box = QGroupBox("시그널 타워")
+        lay = QVBoxLayout(box)
+        self._tower = {}
+        for key, on_color in (("red", "#e33"), ("yellow", "#ec3"), ("green", "#3c3")):
+            lamp = QLabel()
+            lamp.setFixedSize(60, 40)
             lamp.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lamp.setStyleSheet(self._lamp_style(False))
-            self._di_lamps[sig] = lamp
-            grid.addWidget(lamp, i // 2, i % 2)
+            self._tower[key] = (lamp, on_color)
+            lay.addWidget(lamp, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self._buzzer = QLabel("부저")
+        self._buzzer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self._buzzer)
         return box
 
-    def _do_group(self, title: str, enum_cls) -> QGroupBox:
-        box = QGroupBox(title)
-        grid = QGridLayout(box)
-        for i, sig in enumerate(enum_cls):
-            btn = QPushButton(sig.name)
-            btn.setCheckable(True)
-            btn.setMinimumHeight(40)
-            btn.toggled.connect(lambda on, s=sig: self._on_do_toggle(s, on))
-            grid.addWidget(btn, i // 2, i % 2)
+    def _load_box(self) -> QGroupBox:
+        box = QGroupBox("하중")
+        lay = QVBoxLayout(box)
+        self.load_label = QLabel("--- kgf")
+        self.load_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.load_label.setStyleSheet("font-size: 48px; font-weight: bold;")
+        lay.addWidget(self.load_label)
+        self.max_label = QLabel("최대 --- kgf")
+        self.max_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.max_label)
         return box
 
-    def _mock_group(self) -> QGroupBox:
-        box = QGroupBox("MOCK 입력 (시뮬레이터 맛보기 — Phase C 에서 정식 패널)")
+    def _status_box(self) -> QGroupBox:
+        box = QGroupBox("상태")
         grid = QGridLayout(box)
-        col = 0
-        for enum_cls, module in ((DI1, self.a1), (DI2, self.a2)):
-            for i, sig in enumerate(enum_cls):
-                cb = QCheckBox(sig.name)
-                cb.toggled.connect(
-                    lambda on, m=module, ch=int(sig): m.set_mock_di(ch, on)
-                )
-                grid.addWidget(cb, i, col)
-            col += 1
+        self._status: dict[str, QLabel] = {}
+        fields = [
+            ("mode", "모드"), ("state", "상태"), ("cyl", "실린더"),
+            ("count", "카운트"), ("vacuum", "진공"), ("sol", "SOL_ENABLE"),
+        ]
+        for i, (key, title) in enumerate(fields):
+            grid.addWidget(QLabel(f"{title}:"), i // 3, (i % 3) * 2)
+            val = QLabel("-")
+            val.setStyleSheet("font-weight: bold;")
+            self._status[key] = val
+            grid.addWidget(val, i // 3, (i % 3) * 2 + 1)
+        self.alarm_label = QLabel("알람: 없음")
+        self.alarm_label.setStyleSheet("color:#c00; font-weight:bold;")
+        grid.addWidget(self.alarm_label, 2, 0, 1, 6)
         return box
+
+    def _button_box(self) -> QGroupBox:
+        box = QGroupBox("조작")
+        lay = QHBoxLayout(box)
+
+        for text, slot in (
+            ("Safety Reset", self.ctrl.cmd_safety_reset),
+            ("Alarm Clear", self.ctrl.cmd_alarm_clear),
+            ("Count Reset", self.ctrl.cmd_count_reset),
+            ("Load Zero", self.ctrl.cmd_load_zero),
+        ):
+            btn = QPushButton(text)
+            btn.setMinimumHeight(60)
+            btn.clicked.connect(slot)
+            lay.addWidget(btn)
+
+        self.vacuum_btn = QPushButton("진공 흡착")
+        self.vacuum_btn.setCheckable(True)
+        self.vacuum_btn.setMinimumHeight(60)
+        self.vacuum_btn.toggled.connect(self.ctrl.set_vacuum)
+        lay.addWidget(self.vacuum_btn)
+        return box
+
+    # -------------------------------------------------------------- 주기 갱신
+    def _tick(self) -> None:
+        self.ctrl.scan()
+        self._update_status()
+        self._maybe_log()
+
+    def _update_status(self) -> None:
+        c = self.ctrl
+        self.load_label.setText(f"{c.load_kgf:.1f} kgf")
+        self.max_label.setText(f"최대 {c.max_load_kgf:.1f} kgf")
+
+        self._status["mode"].setText("Auto" if c.mode_auto else "Manual")
+        self._status["state"].setText(c.state.value)
+        self._status["cyl"].setText(self._cyl_text())
+        self._status["count"].setText(f"{c.count} / {c.target_count}")
+        self._status["vacuum"].setText("OK" if c.vacuum_ok else "Not OK")
+        self._status["sol"].setText("ON" if c.sol_enable_ok else "OFF")
+
+        alarms = ", ".join(sorted(a.value for a in c.alarms))
+        self.alarm_label.setText(f"알람: {alarms}" if alarms else "알람: 없음")
+
+        o = c.out
+        self._set_lamp("red", o.tower_red)
+        self._set_lamp("yellow", o.tower_yellow)
+        self._set_lamp("green", o.tower_green)
+        self._buzzer.setStyleSheet(
+            "background:#e33;color:white;" if o.tower_buzzer else "color:#888;"
+        )
+
+    def _cyl_text(self) -> str:
+        up = self.ctrl.io.di(DI1.CYL_UP_POS)
+        down = self.ctrl.io.di(DI1.CYL_DOWN_POS)
+        if up and not down:
+            return "Up"
+        if down and not up:
+            return "Down"
+        return "Unknown"
+
+    def _set_lamp(self, key: str, on: bool) -> None:
+        lamp, color = self._tower[key]
+        lamp.setStyleSheet(
+            f"background:{color if on else '#333'}; border-radius:8px;"
+        )
+
+    def _maybe_log(self) -> None:
+        if self.ctrl.count > self._prev_count:
+            self.logger.log_cycle(self.ctrl.count, self.ctrl.max_load_kgf, self.ctrl.alarms)
+        self._prev_count = self.ctrl.count
 
     # -------------------------------------------------------------- events
-    def _on_do_toggle(self, sig, on: bool) -> None:
-        self.io.set(sig, on)
-        self.io.flush_outputs()
-
-    def _tick(self) -> None:
-        self.io.refresh_inputs()
-        kgf = self.loadcell.read_kgf()
-        ma = self.io.ma(AI.LOADCELL_CURRENT)
-        self.load_label.setText(f"{kgf:.1f} kgf")
-        self.ma_label.setText(f"{ma:.2f} mA")
-        for sig, lamp in self._di_lamps.items():
-            lamp.setStyleSheet(self._lamp_style(self.io.di(sig)))
-
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Escape:
             self.close()
             return
         super().keyPressEvent(event)
-
-    @staticmethod
-    def _lamp_style(on: bool) -> str:
-        color = "#3c3" if on else "#444"
-        return f"background:{color}; color:white; padding:6px; border-radius:5px;"
