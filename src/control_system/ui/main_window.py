@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
     def _update_status(self) -> None:
         c = self.ctrl
         self.load_label.setText(f"{c.load_kgf:.1f} kgf")
-        self.max_label.setText(f"최대 {c.max_load_kgf:.1f} kgf")
+        self.max_label.setText(f"최대 {c.run_peak_load_kgf:.1f} kgf")
 
         self._status["mode"].setText("Auto" if c.mode_auto else "Manual")
         self._status["state"].setText(c.state.value)
@@ -170,7 +170,7 @@ class MainWindow(QMainWindow):
 
     def _maybe_log(self) -> None:
         if self.ctrl.count > self._prev_count:
-            self.logger.log_cycle(self.ctrl.count, self.ctrl.max_load_kgf, self.ctrl.alarms)
+            self.logger.log_cycle(self.ctrl.count, self.ctrl.run_peak_load_kgf, self.ctrl.alarms)
         self._prev_count = self.ctrl.count
 
     # -------------------------------------------------------------- events

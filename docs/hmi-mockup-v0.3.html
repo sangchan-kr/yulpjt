@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>반복 가압 측정기 HMI 화면 목업 v0.3</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#111b2d;
+    --panel2:#172338;
+    --line:#2a3a52;
+    --text:#eef4fb;
+    --muted:#93a4b8;
+    --green:#22c55e;
+    --yellow:#f5b93f;
+    --red:#ef4444;
+    --blue:#38bdf8;
+    --cyan:#2dd4bf;
+    --off:#596579;
+    --white:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:#e8edf3;
+    font-family:"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",Arial,sans-serif;
+    color:#172033;
+  }
+  .review-wrap{max-width:1250px;margin:0 auto;padding:24px}
+  .review-header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}
+  .review-header h1{font-size:24px;margin:0 0 6px}
+  .review-header p{margin:0;color:#5f6b7a;font-size:14px}
+  .page-picker{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .page-picker button{border:1px solid #b9c3d1;background:#fff;border-radius:8px;padding:8px 11px;font-weight:700;cursor:pointer}
+  .page-picker button.active{background:#172338;color:#fff;border-color:#172338}
+  .stage{background:#cbd4df;border-radius:16px;padding:22px;box-shadow:0 18px 50px rgba(30,41,59,.18)}
+  .hmi-shell{
+    width:1024px;height:600px;margin:0 auto;background:var(--bg);border:14px solid #202735;border-radius:22px;
+    box-shadow:inset 0 0 0 2px #667085,0 12px 30px rgba(0,0,0,.28);overflow:hidden;position:relative;
+  }
+  .screen{position:absolute;inset:0;display:none;background:var(--bg);color:var(--text)}
+  .screen.active{display:flex;flex-direction:column}
+  .topbar{height:54px;background:#0f1828;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1.5fr .65fr .85fr .8fr .35fr;align-items:center;padding:0 18px;gap:10px}
+  .brand{font-size:20px;font-weight:800;letter-spacing:-.5px}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-height:30px;border-radius:7px;font-weight:800;font-size:13px;padding:0 10px;background:#22324c;border:1px solid #344660}
+  .badge.auto{background:#0d3b55;border-color:#0e7490;color:#bff5ff}
+  .badge.manual{background:#4a3311;border-color:#a16207;color:#ffe8a3}
+  .badge.running{background:#0e3b23;border-color:#168a46;color:#a7f3c2}
+  .badge.idle{background:#2a3445;color:#d8e0ea}
+  .badge.stop{background:#541c20;border-color:#b4232b;color:#ffc8cc}
+  .clock{text-align:right;font-size:14px;color:#b7c4d4;font-weight:700}
+  .gear{text-align:center;font-size:20px;color:#c9d4e3}
+  .status-strip{height:48px;background:#111b2d;border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:7px 14px;gap:8px}
+  .status-pill{display:flex;align-items:center;justify-content:center;gap:8px;background:#152236;border:1px solid #2a3a52;border-radius:7px;font-size:12px;font-weight:800;color:#dce6f1}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--off);box-shadow:0 0 0 3px rgba(255,255,255,.03)}
+  .dot.green{background:var(--green);box-shadow:0 0 10px rgba(34,197,94,.55)}
+  .dot.yellow{background:var(--yellow);box-shadow:0 0 10px rgba(245,185,63,.5)}
+  .dot.red{background:var(--red);box-shadow:0 0 10px rgba(239,68,68,.55)}
+  .dot.blue{background:var(--blue);box-shadow:0 0 10px rgba(56,189,248,.5)}
+  .content{flex:1;min-height:0;padding:12px 14px 10px;overflow:hidden}
+  .bottom-nav{height:58px;border-top:1px solid var(--line);background:#0f1828;display:grid;grid-template-columns:repeat(5,1fr);padding:7px 10px;gap:8px}
+  .nav-btn{background:#172338;border:1px solid #2a3a52;color:#b9c7d8;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer}
+  .nav-btn.active{background:#0c4a6e;border-color:#38bdf8;color:#e9fbff}
+  .grid-main{display:grid;grid-template-columns:1.05fr 1fr;gap:12px;height:100%}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}
+  .card-title{font-size:13px;color:#9fb0c5;font-weight:800;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center}
+  .process-card{display:flex;flex-direction:column}
+  .process-stage{font-size:30px;font-weight:900;letter-spacing:-1px;margin:4px 0 2px;color:#fff}
+  .process-sub{font-size:14px;color:#9fb0c5}
+  .cylinder-graphic{flex:1;display:flex;align-items:center;justify-content:center;position:relative;min-height:120px}
+  .cyl{width:210px;height:50px;border:3px solid #687a91;border-radius:8px;background:#1d2a3e;position:relative}
+  .cyl:before{content:"";position:absolute;width:126px;height:16px;right:-126px;top:14px;background:#9ca9b9;border-radius:0 5px 5px 0}
+  .cyl:after{content:"";position:absolute;width:18px;height:44px;right:-136px;top:0;background:#73849a;border-radius:4px}
+  .press-arrow{position:absolute;right:76px;top:8px;font-size:38px;color:var(--green);font-weight:900}
+  .timer-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .mini-value{background:#152236;border-radius:8px;padding:9px 10px;border:1px solid #2a3a52}
+  .mini-value span{display:block;font-size:11px;color:#91a4bb;margin-bottom:3px}
+  .mini-value strong{font-size:18px}
+  .load-big{display:flex;align-items:flex-end;justify-content:center;gap:8px;padding:2px 0 3px}
+  .load-big .num{font-size:56px;font-weight:900;letter-spacing:-2px;line-height:1}
+  .load-big .unit{font-size:17px;color:#a9b6c7;padding-bottom:7px}
+  .load-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:7px 0}
+  .load-stats .mini-value{text-align:center;padding:7px 6px}
+  .chart{height:92px;background:linear-gradient(to bottom,rgba(56,189,248,.03),rgba(56,189,248,.0)),repeating-linear-gradient(to right,transparent 0,transparent 51px,rgba(255,255,255,.04) 52px),repeating-linear-gradient(to bottom,transparent 0,transparent 22px,rgba(255,255,255,.04) 23px);border:1px solid #2a3a52;border-radius:7px;position:relative;overflow:hidden}
+  .chart svg{position:absolute;inset:0;width:100%;height:100%}
+  .progress-area{margin-top:10px}
+  .progress-head{display:flex;justify-content:space-between;font-size:13px;font-weight:800;color:#d8e4ef;margin-bottom:6px}
+  .progress{height:14px;background:#223048;border-radius:9px;overflow:hidden;border:1px solid #31435f}
+  .progress > div{height:100%;width:25%;background:linear-gradient(90deg,#0ea5e9,#2dd4bf)}
+  .vacuum-panel{margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px;align-items:stretch}
+  .vacuum-state{background:#152236;border:1px solid #2a3a52;border-radius:8px;padding:8px 10px}
+  .vacuum-state span{font-size:11px;color:#91a4bb;display:block;margin-bottom:3px}
+  .vacuum-state strong{font-size:17px}
+  .vacuum-toggle{border:1px solid #15803d;background:#0d3b23;color:#c7f9d5;border-radius:9px;font-size:17px;font-weight:900;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+  .vacuum-toggle.off{border-color:#64748b;background:#263244;color:#e2e8f0}
+  .action-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+  .action{border:1px solid #3a4c65;background:#1a2a40;color:#e1e9f2;border-radius:8px;font-size:13px;font-weight:800;padding:9px 6px}
+  .action.danger{border-color:#9e2f38;background:#4c1d21;color:#ffd6d9}
+  .action.disabled{opacity:.45}
+  .section-title{font-size:18px;font-weight:900;margin:0 0 10px}
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;height:calc(100% - 38px)}
+  .setting-row{display:grid;grid-template-columns:1.25fr .85fr .35fr;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #223149}
+  .setting-row:last-child{border-bottom:none}
+  .setting-label{font-size:13px;font-weight:800;color:#dce6f1}
+  .input-box{height:36px;background:#0e1726;border:1px solid #3a4b63;border-radius:7px;color:#fff;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-weight:900}
+  .unit{font-size:12px;color:#9aaabc}
+  .settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:9px}
+  .primary{background:#075985;border:1px solid #38bdf8;color:white;border-radius:8px;padding:9px 18px;font-weight:900}
+  .secondary{background:#202d41;border:1px solid #40516a;color:#d8e3ee;border-radius:8px;padding:9px 16px;font-weight:800}
+  .status-layout{display:grid;grid-template-columns:.9fr 1.1fr;gap:10px;height:100%}
+  .status-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .status-box{background:#152236;border:1px solid #2a3a52;border-radius:8px;padding:9px}
+  .status-box span{display:block;color:#8fa2b7;font-size:11px;margin-bottom:3px}
+  .status-box strong{font-size:15px}
+  .io-table{width:100%;border-collapse:separate;border-spacing:0 5px;font-size:12px}
+  .io-table th{color:#91a4bb;text-align:left;padding:0 7px 4px}
+  .io-table td{background:#152236;padding:6px 7px;border-top:1px solid #263953;border-bottom:1px solid #263953}
+  .io-table td:first-child{border-left:1px solid #263953;border-radius:6px 0 0 6px}
+  .io-table td:last-child{border-right:1px solid #263953;border-radius:0 6px 6px 0}
+  .state-on{color:#78f0a5;font-weight:900}
+  .state-off{color:#8797aa;font-weight:800}
+  .tabs{display:flex;gap:8px;margin-bottom:9px}
+  .tab{background:#18263a;border:1px solid #2e4059;border-radius:8px;padding:7px 14px;color:#aebdcd;font-weight:800;font-size:12px}
+  .tab.active{background:#0c4a6e;border-color:#38bdf8;color:#fff}
+  .log-layout{display:grid;grid-template-columns:1.3fr .7fr;gap:10px;height:calc(100% - 38px)}
+  .log-table{width:100%;border-collapse:collapse;font-size:12px}
+  .log-table th{background:#172338;color:#a9b7c8;text-align:left;padding:8px;border-bottom:1px solid #33445d}
+  .log-table td{padding:8px;border-bottom:1px solid #223148;color:#dce6ef}
+  .log-table tr.active td{background:#12344a}
+  .result-ok{color:#7ee6a4;font-weight:900}.result-warn{color:#ffd56a;font-weight:900}.result-error{color:#ff8f96;font-weight:900}
+  .detail-list{display:grid;gap:7px}
+  .detail-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #26374f;font-size:12px}
+  .detail-row span:first-child{color:#91a4bb}.detail-row strong{color:#eff6ff}
+  .help-layout{display:grid;grid-template-columns:.36fr .64fr;gap:10px;height:100%}
+  .help-menu{display:flex;flex-direction:column;gap:7px}
+  .help-menu button{border:1px solid #2c3d56;background:#172338;color:#c1cede;border-radius:8px;padding:10px;text-align:left;font-weight:800}
+  .help-menu button.active{background:#0c4a6e;border-color:#38bdf8;color:#fff}
+  .steps{counter-reset:step;display:grid;gap:9px;margin-top:9px}
+  .step{counter-increment:step;display:grid;grid-template-columns:34px 1fr;gap:9px;align-items:start;background:#152236;border:1px solid #2a3a52;border-radius:8px;padding:9px}
+  .step:before{content:counter(step);width:28px;height:28px;border-radius:50%;background:#075985;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900}
+  .step strong{display:block;font-size:13px;margin-bottom:2px}.step span{font-size:12px;color:#aab8c8}
+  .maintenance-layout{display:grid;grid-template-columns:1fr 1fr;gap:10px;height:100%}
+  .hold-btn{height:70px;border:1px solid #0e7490;background:#0f3d54;color:#d8f7ff;border-radius:10px;font-size:17px;font-weight:900;margin-top:7px}
+  .hold-btn.blow{border-color:#b7791f;background:#503817;color:#ffe8aa}
+  .warning{background:#4a3214;border:1px solid #a66d14;color:#ffe3a2;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:9px}
+  .boot-screen{background:radial-gradient(circle at 50% 40%,#172b43 0,#0b1220 55%);align-items:center!important;justify-content:center}
+  .boot-box{width:620px;background:rgba(17,27,45,.88);border:1px solid #31445f;border-radius:16px;padding:26px 30px;box-shadow:0 15px 60px rgba(0,0,0,.35)}
+  .boot-title{text-align:center;font-size:29px;font-weight:900;margin-bottom:5px}.boot-sub{text-align:center;color:#8fa2b7;font-size:13px;margin-bottom:18px}
+  .check-list{display:grid;gap:7px}.check{display:grid;grid-template-columns:25px 1fr auto;align-items:center;background:#152236;border-radius:8px;padding:8px 11px;border:1px solid #273a54}.check .ok{color:#67e89a;font-weight:900}.check .wait{color:#ffd36a;font-weight:900}.check .label{font-size:13px;font-weight:800}.check .desc{font-size:11px;color:#8da0b5}
+  .boot-progress{margin-top:15px;height:10px;background:#223148;border-radius:6px;overflow:hidden}.boot-progress div{height:100%;width:84%;background:linear-gradient(90deg,#0ea5e9,#2dd4bf)}
+  .alarm-overlay{position:absolute;inset:0;background:rgba(5,9,17,.76);display:flex;align-items:center;justify-content:center;z-index:20}
+  .alarm-dialog{width:600px;background:#35171b;border:2px solid #ef4444;border-radius:14px;padding:20px 24px;box-shadow:0 0 40px rgba(239,68,68,.28)}
+  .alarm-dialog h2{margin:0 0 9px;color:#ffc4c8;font-size:28px}.alarm-dialog p{margin:5px 0;color:#f3d3d6;font-size:14px}.alarm-list{background:#251316;border:1px solid #713039;border-radius:8px;padding:10px 14px;margin:12px 0 14px}.alarm-list div{padding:5px 0;color:#ffd9dc;font-size:13px}.alarm-actions{display:flex;justify-content:flex-end;gap:9px}.alarm-actions button{padding:10px 20px;border-radius:8px;font-weight:900}.reset-btn{background:#7f1d1d;border:1px solid #f87171;color:white}.close-btn{background:#2d394b;border:1px solid #5f6e82;color:#e8eef6}
+  .caption{margin-top:14px;color:#536171;font-size:13px;text-align:center}
+  @media(max-width:1120px){.hmi-shell{transform:scale(.88);transform-origin:top center;margin-bottom:-72px}.stage{overflow:hidden}}
+</style>
+</head>
+<body>
+<div class="review-wrap">
+  <div class="review-header">
+    <div>
+      <h1>반복 가압 측정기 HMI 화면 목업 v0.3</h1>
+      <p>7인치 1024×600 기준 · 진공은 메인 화면에서 수동 ON/OFF · 자동 사이클과 독립</p>
+    </div>
+    <div class="page-picker" id="picker">
+      <button data-page="boot">부팅</button>
+      <button data-page="main">운전</button>
+      <button data-page="settings">조건설정</button>
+      <button data-page="status">시스템상태</button>
+      <button data-page="logs">로그</button>
+      <button data-page="help">도움말</button>
+      <button data-page="maintenance">유지보수</button>
+      <button data-page="alarm">안전정지</button>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="hmi-shell">
+
+      <!-- Boot -->
+      <section class="screen boot-screen" id="page-boot">
+        <div class="boot-box">
+          <div class="boot-title">반복 가압 측정기</div>
+          <div class="boot-sub">System initialization and communication check</div>
+          <div class="check-list">
+            <div class="check"><div class="ok">✓</div><div><div class="label">Raspberry Pi Application</div><div class="desc">Control service running</div></div><div class="ok">READY</div></div>
+            <div class="check"><div class="ok">✓</div><div><div class="label">ADAM-4055-C #1</div><div class="desc">Node 1 · Digital I/O</div></div><div class="ok">CONNECTED</div></div>
+            <div class="check"><div class="ok">✓</div><div><div class="label">ADAM-4055-C #2</div><div class="desc">Node 2 · Vacuum I/O</div></div><div class="ok">CONNECTED</div></div>
+            <div class="check"><div class="ok">✓</div><div><div class="label">ADAM-4017+-F</div><div class="desc">Node 3 · Loadcell Analog Input</div></div><div class="ok">CONNECTED</div></div>
+            <div class="check"><div class="wait">●</div><div><div class="label">SOL ENABLE</div><div class="desc">Waiting for EMO and area sensor ready</div></div><div class="wait">WAITING</div></div>
+          </div>
+          <div class="boot-progress"><div></div></div>
+        </div>
+      </section>
+
+      <!-- Main -->
+      <section class="screen" id="page-main">
+        <div class="topbar">
+          <div class="brand">반복 가압 측정기</div><div class="badge auto">AUTO</div><div class="badge running">AUTO RUNNING</div><div class="clock">2026-07-18&nbsp;&nbsp;13:42</div><div class="gear">⚙</div>
+        </div>
+        <div class="status-strip">
+          <div class="status-pill"><i class="dot green"></i>SOL ENABLED</div>
+          <div class="status-pill"><i class="dot blue"></i>CYL DOWN</div>
+          <div class="status-pill"><i class="dot green"></i>VACUUM OK</div>
+          <div class="status-pill"><i class="dot green"></i>LOADCELL OK</div>
+          <div class="status-pill"><i class="dot green"></i>ADAM CONNECTED</div>
+        </div>
+        <div class="content">
+          <div class="grid-main">
+            <div class="card process-card">
+              <div class="card-title"><span>현재 공정</span><span>Step 2 / 4</span></div>
+              <div class="process-stage">가압 유지 중</div>
+              <div class="process-sub">AUTO_DWELL_DOWN · 남은 시간 1.2초</div>
+              <div class="cylinder-graphic"><div class="cyl"></div><div class="press-arrow">↓</div></div>
+              <div class="timer-row">
+                <div class="mini-value"><span>DOWN DWELL</span><strong>2.00 s</strong></div>
+                <div class="mini-value"><span>UP DWELL</span><strong>1.00 s</strong></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title"><span>하중 모니터</span><span>AI-00</span></div>
+              <div class="load-big"><span class="num">325.4</span><span class="unit">kgf</span></div>
+              <div class="load-stats">
+                <div class="mini-value"><span>사이클 최대</span><strong>331.2</strong></div>
+                <div class="mini-value"><span>운전 최대</span><strong>348.7</strong></div>
+                <div class="mini-value"><span>상한</span><strong>500.0</strong></div>
+              </div>
+              <div class="chart">
+                <svg viewBox="0 0 420 100" preserveAspectRatio="none"><polyline fill="none" stroke="#38bdf8" stroke-width="3" points="0,78 25,76 48,75 70,73 90,70 110,65 130,57 150,44 170,29 190,19 210,17 230,17 250,18 270,18 290,21 310,33 330,48 350,61 370,69 395,74 420,76"/></svg>
+              </div>
+              <div class="progress-area">
+                <div class="progress-head"><span>반복 횟수&nbsp;&nbsp;125 / 500</span><span>25.0%</span></div>
+                <div class="progress"><div></div></div>
+              </div>
+              <div class="vacuum-panel">
+                <div class="vacuum-state"><span>VACUUM COMMAND</span><strong id="vacCommand">ON</strong></div>
+                <div class="vacuum-state"><span>VACUUM_OK</span><strong id="vacOk" style="color:#72eda0">ON</strong></div>
+                <button class="vacuum-toggle" id="vacToggle">VACUUM OFF</button>
+              </div>
+              <div class="action-row">
+                <button class="action disabled">SAFETY RESET</button><button class="action">ALARM CLEAR</button><button class="action">COUNT RESET</button><button class="action">LOAD ZERO</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <button class="nav-btn active" data-page="main">운전</button><button class="nav-btn" data-page="settings">조건설정</button><button class="nav-btn" data-page="status">시스템상태</button><button class="nav-btn" data-page="logs">로그</button><button class="nav-btn" data-page="help">도움말</button>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="screen" id="page-settings">
+        <div class="topbar"><div class="brand">반복 가압 측정기</div><div class="badge auto">AUTO</div><div class="badge idle">IDLE</div><div class="clock">2026-07-18&nbsp;&nbsp;13:42</div><div class="gear">⚙</div></div>
+        <div class="status-strip"><div class="status-pill"><i class="dot green"></i>SOL ENABLED</div><div class="status-pill"><i class="dot blue"></i>CYL UP</div><div class="status-pill"><i class="dot yellow"></i>VACUUM OFF</div><div class="status-pill"><i class="dot green"></i>LOADCELL OK</div><div class="status-pill"><i class="dot green"></i>ADAM CONNECTED</div></div>
+        <div class="content">
+          <div class="section-title">운전 조건 설정</div>
+          <div class="settings-grid">
+            <div class="card">
+              <div class="card-title">반복 가압 조건</div>
+              <div class="setting-row"><div class="setting-label">목표 반복 횟수</div><div class="input-box">500</div><div class="unit">회</div></div>
+              <div class="setting-row"><div class="setting-label">Down Dwell Time</div><div class="input-box">2.00</div><div class="unit">sec</div></div>
+              <div class="setting-row"><div class="setting-label">Up Dwell Time</div><div class="input-box">1.00</div><div class="unit">sec</div></div>
+              <div class="setting-row"><div class="setting-label">실린더 하강 Timeout</div><div class="input-box">5.00</div><div class="unit">sec</div></div>
+              <div class="setting-row"><div class="setting-label">실린더 상승 Timeout</div><div class="input-box">5.00</div><div class="unit">sec</div></div>
+            </div>
+            <div class="card">
+              <div class="card-title">하중 및 진공 표시 조건</div>
+              <div class="setting-row"><div class="setting-label">하중 상한</div><div class="input-box">500.0</div><div class="unit">kgf</div></div>
+              <div class="setting-row"><div class="setting-label">Vacuum Confirm Timeout</div><div class="input-box">2.00</div><div class="unit">sec</div></div>
+              <div class="setting-row"><div class="setting-label">하중 데이터 저장</div><div class="input-box">ON</div><div class="unit"></div></div>
+              <div class="setting-row"><div class="setting-label">실시간 그래프 구간</div><div class="input-box">30</div><div class="unit">sec</div></div>
+              <div class="setting-row"><div class="setting-label">화면 밝기</div><div class="input-box">80</div><div class="unit">%</div></div>
+              <div class="settings-actions"><button class="secondary">기본값 복원</button><button class="secondary">취소</button><button class="primary">저장</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav"><button class="nav-btn" data-page="main">운전</button><button class="nav-btn active">조건설정</button><button class="nav-btn" data-page="status">시스템상태</button><button class="nav-btn" data-page="logs">로그</button><button class="nav-btn" data-page="help">도움말</button></div>
+      </section>
+
+      <!-- Status -->
+      <section class="screen" id="page-status">
+        <div class="topbar"><div class="brand">반복 가압 측정기</div><div class="badge manual">MANUAL</div><div class="badge idle">IDLE</div><div class="clock">2026-07-18&nbsp;&nbsp;13:42</div><div class="gear">⚙</div></div>
+        <div class="status-strip"><div class="status-pill"><i class="dot green"></i>SOL ENABLED</div><div class="status-pill"><i class="dot blue"></i>CYL UP</div><div class="status-pill"><i class="dot green"></i>VACUUM OK</div><div class="status-pill"><i class="dot green"></i>LOADCELL OK</div><div class="status-pill"><i class="dot green"></i>ADAM CONNECTED</div></div>
+        <div class="content">
+          <div class="section-title">시스템 상태</div>
+          <div class="status-layout">
+            <div class="card">
+              <div class="card-title">Controller / Communication</div>
+              <div class="status-list">
+                <div class="status-box"><span>APPLICATION</span><strong style="color:#7ee6a4">RUNNING</strong></div><div class="status-box"><span>UPTIME</span><strong>2d 04:21</strong></div>
+                <div class="status-box"><span>CPU TEMP</span><strong>52 ℃</strong></div><div class="status-box"><span>STORAGE FREE</span><strong>18.2 GB</strong></div>
+                <div class="status-box"><span>ADAM-4055 #1</span><strong style="color:#7ee6a4">CONNECTED</strong></div><div class="status-box"><span>NODE / POLL</span><strong>1 / 102 ms</strong></div>
+                <div class="status-box"><span>ADAM-4055 #2</span><strong style="color:#7ee6a4">CONNECTED</strong></div><div class="status-box"><span>NODE / POLL</span><strong>2 / 104 ms</strong></div>
+                <div class="status-box"><span>ADAM-4017</span><strong style="color:#7ee6a4">CONNECTED</strong></div><div class="status-box"><span>LOADCELL RAW</span><strong>9.20 mA</strong></div>
+                <div class="status-box"><span>VACUUM COMMAND</span><strong style="color:#7ee6a4">ON</strong></div><div class="status-box"><span>VACUUM_OK</span><strong style="color:#7ee6a4">ON</strong></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="tabs"><div class="tab active">ADAM #1 I/O</div><div class="tab">ADAM #2 I/O</div><div class="tab">Analog</div></div>
+              <table class="io-table">
+                <thead><tr><th>채널</th><th>신호명</th><th>상태</th><th>채널</th><th>신호명</th><th>상태</th></tr></thead>
+                <tbody>
+                  <tr><td>DI-00</td><td>MODE_AUTO</td><td class="state-off">OFF</td><td>DO-00</td><td>TOWER_GREEN</td><td class="state-off">OFF</td></tr>
+                  <tr><td>DI-01</td><td>AUTO_START</td><td class="state-off">OFF</td><td>DO-01</td><td>TOWER_YELLOW</td><td class="state-on">ON</td></tr>
+                  <tr><td>DI-02</td><td>AUTO_STOP</td><td class="state-off">OFF</td><td>DO-02</td><td>TOWER_RED</td><td class="state-off">OFF</td></tr>
+                  <tr><td>DI-03</td><td>MANUAL_UP</td><td class="state-off">OFF</td><td>DO-03</td><td>BUZZER</td><td class="state-off">OFF</td></tr>
+                  <tr><td>DI-04</td><td>MANUAL_DOWN</td><td class="state-off">OFF</td><td>DO-04</td><td>VALVE_DOWN</td><td class="state-off">OFF</td></tr>
+                  <tr><td>DI-05</td><td>CYL_UP_POS</td><td class="state-on">ON</td><td>DO-05</td><td>VALVE_UP</td><td class="state-off">OFF</td></tr>
+                  <tr><td>DI-06</td><td>CYL_DOWN_POS</td><td class="state-off">OFF</td><td>DO-06</td><td>SPARE</td><td class="state-off">OFF</td></tr>
+                  <tr><td>DI-07</td><td>SOL_ENABLE_OK</td><td class="state-on">ON</td><td>DO-07</td><td>SPARE</td><td class="state-off">OFF</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav"><button class="nav-btn" data-page="main">운전</button><button class="nav-btn" data-page="settings">조건설정</button><button class="nav-btn active">시스템상태</button><button class="nav-btn" data-page="logs">로그</button><button class="nav-btn" data-page="help">도움말</button></div>
+      </section>
+
+      <!-- Logs -->
+      <section class="screen" id="page-logs">
+        <div class="topbar"><div class="brand">반복 가압 측정기</div><div class="badge auto">AUTO</div><div class="badge idle">IDLE</div><div class="clock">2026-07-18&nbsp;&nbsp;13:42</div><div class="gear">⚙</div></div>
+        <div class="status-strip"><div class="status-pill"><i class="dot green"></i>SOL ENABLED</div><div class="status-pill"><i class="dot blue"></i>CYL UP</div><div class="status-pill"><i class="dot yellow"></i>VACUUM OFF</div><div class="status-pill"><i class="dot green"></i>LOADCELL OK</div><div class="status-pill"><i class="dot green"></i>ADAM CONNECTED</div></div>
+        <div class="content">
+          <div class="tabs"><div class="tab active">운전 기록</div><div class="tab">알람 기록</div><div class="tab">진공 이벤트</div><div class="tab">하중 트렌드</div></div>
+          <div class="log-layout">
+            <div class="card" style="padding:0;overflow:hidden">
+              <table class="log-table"><thead><tr><th>시작 시각</th><th>운전번호</th><th>결과</th><th>반복수</th><th>최대하중</th></tr></thead><tbody>
+                <tr class="active"><td>13:30:24</td><td>20260718-003</td><td class="result-ok">정상완료</td><td>500 / 500</td><td>338.2 kgf</td></tr>
+                <tr><td>12:15:02</td><td>20260718-002</td><td class="result-warn">사용자정지</td><td>178 / 500</td><td>341.1 kgf</td></tr>
+                <tr><td>11:22:51</td><td>20260718-001</td><td class="result-error">Safety Stop</td><td>32 / 500</td><td>330.4 kgf</td></tr>
+                <tr><td>10:03:18</td><td>20260718-000</td><td class="result-ok">정상완료</td><td>100 / 100</td><td>327.8 kgf</td></tr>
+                <tr><td>09:26:43</td><td>20260718-T02</td><td class="result-warn">Vacuum 경고</td><td>25 / 25</td><td>322.0 kgf</td></tr>
+              </tbody></table>
+            </div>
+            <div class="card">
+              <div class="card-title">선택 운전 상세</div>
+              <div class="detail-list">
+                <div class="detail-row"><span>운전번호</span><strong>20260718-003</strong></div>
+                <div class="detail-row"><span>운전 시간</span><strong>40:12</strong></div>
+                <div class="detail-row"><span>목표 / 완료</span><strong>500 / 500</strong></div>
+                <div class="detail-row"><span>평균 최대하중</span><strong>331.5 kgf</strong></div>
+                <div class="detail-row"><span>운전 최대하중</span><strong>338.2 kgf</strong></div>
+                <div class="detail-row"><span>Vacuum 시작</span><strong>Command ON / OK</strong></div>
+                <div class="detail-row"><span>Vacuum 종료</span><strong>Command ON / OK</strong></div>
+                <div class="detail-row"><span>Vacuum Loss</span><strong>0 회</strong></div>
+              </div>
+              <div class="settings-actions"><button class="secondary">CSV 내보내기</button><button class="primary">상세 보기</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav"><button class="nav-btn" data-page="main">운전</button><button class="nav-btn" data-page="settings">조건설정</button><button class="nav-btn" data-page="status">시스템상태</button><button class="nav-btn active">로그</button><button class="nav-btn" data-page="help">도움말</button></div>
+      </section>
+
+      <!-- Help -->
+      <section class="screen" id="page-help">
+        <div class="topbar"><div class="brand">반복 가압 측정기</div><div class="badge manual">MANUAL</div><div class="badge idle">IDLE</div><div class="clock">2026-07-18&nbsp;&nbsp;13:42</div><div class="gear">⚙</div></div>
+        <div class="status-strip"><div class="status-pill"><i class="dot green"></i>SOL ENABLED</div><div class="status-pill"><i class="dot blue"></i>CYL UP</div><div class="status-pill"><i class="dot yellow"></i>VACUUM OFF</div><div class="status-pill"><i class="dot green"></i>LOADCELL OK</div><div class="status-pill"><i class="dot green"></i>ADAM CONNECTED</div></div>
+        <div class="content"><div class="help-layout">
+          <div class="card help-menu"><button class="active">빠른 사용법</button><button>자동운전</button><button>진공 수동운전</button><button>수동운전</button><button>Safety Stop 복구</button><button>알람 조치</button><button>일상 점검</button><button>장비 정보</button></div>
+          <div class="card"><div class="section-title">빠른 사용법</div><div style="font-size:12px;color:#9fb0c5;margin-bottom:8px">작업 시작 전 장비 상태바가 모두 정상인지 확인하십시오.</div>
+            <div class="steps">
+              <div class="step"><div><strong>Main Power를 켭니다.</strong><span>부팅 및 ADAM 통신 초기점검 완료를 기다립니다.</span></div></div>
+              <div class="step"><div><strong>제품을 흡착 위치에 놓습니다.</strong><span>필요한 경우 메인 화면에서 VACUUM ON을 누르고 VACUUM_OK를 확인합니다.</span></div></div>
+              <div class="step"><div><strong>AUTO 모드를 선택합니다.</strong><span>제어반의 AUTO/MANUAL 셀렉터를 AUTO 위치로 돌립니다.</span></div></div>
+              <div class="step"><div><strong>운전 조건을 확인합니다.</strong><span>반복 횟수, Down/Up Dwell, 하중 상한을 확인합니다.</span></div></div>
+              <div class="step"><div><strong>Auto Run/Start 버튼을 누릅니다.</strong><span>자동 가압 사이클이 시작되며 진공 상태는 자동으로 변경되지 않습니다.</span></div></div>
+              <div class="step"><div><strong>운전 완료 후 진공을 해제합니다.</strong><span>제품을 제거할 준비가 되면 메인 화면에서 VACUUM OFF를 누릅니다.</span></div></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="bottom-nav"><button class="nav-btn" data-page="main">운전</button><button class="nav-btn" data-page="settings">조건설정</button><button class="nav-btn" data-page="status">시스템상태</button><button class="nav-btn" data-page="logs">로그</button><button class="nav-btn active">도움말</button></div>
+      </section>
+
+      <!-- Maintenance -->
+      <section class="screen" id="page-maintenance">
+        <div class="topbar"><div class="brand">유지보수 / I/O 시험</div><div class="badge manual">ENGINEER</div><div class="badge idle">MANUAL IDLE</div><div class="clock">2026-07-18&nbsp;&nbsp;13:42</div><div class="gear">🔒</div></div>
+        <div class="status-strip"><div class="status-pill"><i class="dot green"></i>SOL ENABLED</div><div class="status-pill"><i class="dot blue"></i>CYL UP</div><div class="status-pill"><i class="dot yellow"></i>VACUUM OFF</div><div class="status-pill"><i class="dot green"></i>LOADCELL OK</div><div class="status-pill"><i class="dot green"></i>ADAM CONNECTED</div></div>
+        <div class="content"><div class="maintenance-layout">
+          <div class="card"><div class="card-title">진공 / Blow-off 시험</div><div class="warning">시험 출력은 버튼을 누르고 있는 동안만 동작합니다. 화면 이탈 또는 통신 이상 시 즉시 OFF됩니다.</div>
+            <div class="status-list"><div class="status-box"><span>VACUUM COMMAND</span><strong>OFF</strong></div><div class="status-box"><span>VACUUM_OK</span><strong>OFF</strong></div></div>
+            <button class="hold-btn">누르고 있는 동안 VACUUM ON</button><button class="hold-btn blow">누르고 있는 동안 BLOW-OFF</button>
+          </div>
+          <div class="card"><div class="card-title">하중 및 통신 서비스</div>
+            <div class="status-list"><div class="status-box"><span>LOADCELL RAW</span><strong>4.02 mA</strong></div><div class="status-box"><span>CORRECTED LOAD</span><strong>1.3 kgf</strong></div><div class="status-box"><span>ZERO OFFSET</span><strong>1.2 kgf</strong></div><div class="status-box"><span>SCALE FACTOR</span><strong>1.000</strong></div></div>
+            <div class="action-row" style="grid-template-columns:1fr 1fr;margin-top:12px"><button class="action">LOAD ZERO</button><button class="action">SPAN 교정</button><button class="action">MODBUS 재연결</button><button class="action">로그 내보내기</button></div>
+            <div class="card-title" style="margin-top:14px">출력 허가 상태</div>
+            <div class="detail-list"><div class="detail-row"><span>Valve Up/Down</span><strong style="color:#7ee6a4">ENABLED</strong></div><div class="detail-row"><span>Vacuum / Blow-off</span><strong style="color:#7ee6a4">ENABLED</strong></div><div class="detail-row"><span>Auto Running</span><strong>NO</strong></div><div class="detail-row"><span>Service Timeout</span><strong>04:58</strong></div></div>
+          </div>
+        </div></div>
+        <div class="bottom-nav"><button class="nav-btn" data-page="main">운전으로 복귀</button><button class="nav-btn">I/O 상세</button><button class="nav-btn">하중 교정</button><button class="nav-btn">통신 설정</button><button class="nav-btn active">유지보수</button></div>
+      </section>
+
+      <!-- Alarm example -->
+      <section class="screen" id="page-alarm">
+        <div class="topbar"><div class="brand">반복 가압 측정기</div><div class="badge auto">AUTO</div><div class="badge stop">SAFETY STOP</div><div class="clock">2026-07-18&nbsp;&nbsp;13:42</div><div class="gear">⚙</div></div>
+        <div class="status-strip"><div class="status-pill"><i class="dot red"></i>SOL DISABLED</div><div class="status-pill"><i class="dot yellow"></i>CYL UNKNOWN</div><div class="status-pill"><i class="dot red"></i>VACUUM FORCED OFF</div><div class="status-pill"><i class="dot green"></i>LOADCELL OK</div><div class="status-pill"><i class="dot green"></i>ADAM CONNECTED</div></div>
+        <div class="content"><div class="grid-main"><div class="card process-card"><div class="card-title">현재 공정</div><div class="process-stage" style="color:#ff9ba1">안전 정지</div><div class="process-sub">모든 액추에이터 출력이 차단되었습니다.</div></div><div class="card"><div class="card-title">하중 모니터</div><div class="load-big"><span class="num">0.8</span><span class="unit">kgf</span></div></div></div></div>
+        <div class="bottom-nav"><button class="nav-btn active">운전</button><button class="nav-btn">조건설정</button><button class="nav-btn">시스템상태</button><button class="nav-btn">로그</button><button class="nav-btn">도움말</button></div>
+        <div class="alarm-overlay"><div class="alarm-dialog"><h2>SAFETY STOP</h2><p>액추에이터 구동 허가가 차단되었습니다. 진공 출력도 강제로 OFF되었습니다.</p><div class="alarm-list"><div>1. 비상정지 버튼이 해제되어 있는지 확인하십시오.</div><div>2. Area Sensor 감지영역을 비우십시오.</div><div>3. SOL ENABLE 상태가 ON으로 복귀했는지 확인하십시오.</div><div>4. Safety Reset 후 진공은 자동 복원되지 않습니다.</div></div><div class="alarm-actions"><button class="close-btn">상세 상태</button><button class="reset-btn">SAFETY RESET</button></div></div></div>
+      </section>
+
+    </div>
+  </div>
+  <div class="caption">상단 버튼 또는 HMI 하단 메뉴를 눌러 각 페이지 목업을 확인할 수 있습니다.</div>
+</div>
+<script>
+  const pageNames=['boot','main','settings','status','logs','help','maintenance','alarm'];
+  function showPage(name, updateUrl=true){
+    if(!pageNames.includes(name)) name='main';
+    document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));
+    document.getElementById('page-'+name).classList.add('active');
+    document.querySelectorAll('#picker button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+    if(updateUrl){const u=new URL(location.href);u.searchParams.set('page',name);history.replaceState({},'',u)}
+  }
+  document.querySelectorAll('[data-page]').forEach(btn=>btn.addEventListener('click',()=>showPage(btn.dataset.page)));
+  const param=new URL(location.href).searchParams.get('page') || 'main';showPage(param,false);
+  const toggle=document.getElementById('vacToggle');
+  if(toggle){toggle.addEventListener('click',()=>{
+    const command=document.getElementById('vacCommand'); const ok=document.getElementById('vacOk');
+    const currentlyOn=command.textContent==='ON';
+    command.textContent=currentlyOn?'OFF':'ON'; ok.textContent=currentlyOn?'OFF':'ON';
+    ok.style.color=currentlyOn?'#9aa8ba':'#72eda0';
+    toggle.textContent=currentlyOn?'VACUUM ON':'VACUUM OFF'; toggle.classList.toggle('off',currentlyOn);
+  })}
+</script>
+</body>
+</html>

@@ -24,20 +24,30 @@ class State(Enum):
 
 
 class Alarm(Enum):
+    # --- 블로킹 알람: 기계 상태(ERROR)·자동운전 정지에 영향 ---
     VALVE_INTERLOCK = "VALVE_INTERLOCK"                  # Down/Up 동시 명령
     MANUAL_CONFLICT = "MANUAL_CONFLICT"                  # Manual Up/Down 동시 입력
     DOWN_TIMEOUT = "DOWN_TIMEOUT"                        # Down 위치 미도달
     UP_TIMEOUT = "UP_TIMEOUT"                            # Up 위치 미도달
-    VACUUM_FAIL = "VACUUM_FAIL"                          # 진공 timeout
-    VACUUM_LOSS = "VACUUM_LOSS"                          # 유지 중 VACUUM_OK 이탈
-    VACUUM_BLOWOFF_INTERLOCK = "VACUUM_BLOWOFF_INTERLOCK"  # 진공/파기 동시 ON
-    ADAM_COMM_ERROR = "ADAM_COMM_ERROR"                  # Modbus 통신 오류
     LOAD_OVER_LIMIT = "LOAD_OVER_LIMIT"                  # 하중 상한 초과
+    ADAM_COMM_ERROR = "ADAM_COMM_ERROR"                  # Modbus 통신 오류
+
+    # --- 진공 경고: 논블로킹. 자동운전/기계 상태/타워에 영향 없음 (완전 분리) ---
+    VACUUM_NOT_REACHED = "VACUUM_NOT_REACHED"            # Vacuum ON 후 timeout 내 미도달
+    VACUUM_SIGNAL_ABNORMAL = "VACUUM_SIGNAL_ABNORMAL"    # Vacuum OFF 인데 OK 장시간 ON
+    VACUUM_BLOWOFF_INTERLOCK = "VACUUM_BLOWOFF_INTERLOCK"  # 진공/파기 동시 ON
 
 
 # SAFETY_STOP 은 상태이면서, HMI Safety Reset 로만 해제된다.
-# 아래 알람들은 원인 제거 후 Alarm Clear 로 해제 가능(clearable).
-CLEARABLE_ALARMS = frozenset(Alarm)
+# 블로킹 알람 = 기계 상태를 ERROR 로 만들고 자동운전을 막는다.
+BLOCKING_ALARMS = frozenset({
+    Alarm.VALVE_INTERLOCK, Alarm.MANUAL_CONFLICT, Alarm.DOWN_TIMEOUT,
+    Alarm.UP_TIMEOUT, Alarm.LOAD_OVER_LIMIT, Alarm.ADAM_COMM_ERROR,
+})
+# 진공 경고 = 논블로킹. 표시만 하고 어떤 자동 동작에도 영향 주지 않는다.
+VACUUM_WARNINGS = frozenset({
+    Alarm.VACUUM_NOT_REACHED, Alarm.VACUUM_SIGNAL_ABNORMAL, Alarm.VACUUM_BLOWOFF_INTERLOCK,
+})
 
 
 @dataclass

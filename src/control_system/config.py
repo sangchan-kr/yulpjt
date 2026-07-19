@@ -87,18 +87,21 @@ class Config:
     loadcell_ai_channel: int = 0        # ADAM-4017+ AI-00
     loadcell_full_scale_kgf: float = 1000.0   # 앰프 20 mA 지점 = 만용량
     loadcell_calibration_path: str = "calibration.json"
-    load_limit_kgf: float = 900.0       # LOAD_OVER_LIMIT 알람 임계
+    load_limit_kgf: float = 500.0       # LOAD_OVER_LIMIT 알람 임계 (시운전값)
 
-    # --- 자동 가압 시퀀스 타이밍 (v1.12 §12) ------------------------------
-    down_dwell_ms: int = 1000           # 하강 유지 시간
-    up_dwell_ms: int = 500              # 상승 유지 시간
-    move_timeout_ms: int = 5000         # Down/Up 위치 도달 타임아웃
-    target_count: int = 10              # 목표 반복 횟수
+    # --- 자동 가압 시퀀스 타이밍 (v1.12 §12, HMI §10) --------------------
+    down_dwell_ms: int = 2000           # 하강 유지 시간
+    up_dwell_ms: int = 1000             # 상승 유지 시간
+    down_timeout_ms: int = 5000         # 하강 위치 도달 타임아웃 (이동시간 다를 수 있어 분리)
+    up_timeout_ms: int = 5000           # 상승 위치 도달 타임아웃
+    target_count: int = 500             # 목표 반복 횟수
 
-    # --- 진공 (수동, HMI 토글 — v1.12 §11.3 / 결정3) ----------------------
-    blowoff_delay_ms: int = 80          # 흡착 OFF 후 blow-off 시작까지 (50~100)
-    blowoff_hold_ms: int = 150          # blow-off 유지 (50~300)
-    vacuum_timeout_ms: int = 2000       # VACUUM_OK 도달 타임아웃 → VACUUM_FAIL
+    # --- 진공 (수동, HMI 토글 — 완전 분리, 모든 진공 알람은 논블로킹) -----
+    vacuum_confirm_timeout_ms: int = 2000  # Vacuum ON 후 OK 미도달 → VACUUM_NOT_REACHED(경고)
+    vacuum_residual_ms: int = 3000         # Vacuum OFF 인데 OK 지속 → VACUUM_SIGNAL_ABNORMAL(경고)
+    # blow-off 는 유지보수 hold-to-run 전용 (메인 화면/자동 시퀀스에서 미사용)
+    blowoff_delay_ms: int = 80          # 유지보수 시험: 흡착 OFF 후 blow-off 시작까지
+    blowoff_hold_ms: int = 300          # 유지보수 시험: blow-off 최대 유지
 
     # --- 입력 논리 반전 (NPN 등, v1.12 §7.2) ------------------------------
     invert_vacuum_ok: bool = False      # ZK2A NPN 스위치 결선 검증 후 결정 (Phase D)
