@@ -97,6 +97,26 @@ class Controller:
         """유지보수 화면 전용 blow-off hold-to-run 요청."""
         self._maint_blowoff_req = bool(on)
 
+    # ------------------------------------------------------------- 표시 헬퍼 (HMI)
+    def remaining_dwell_s(self) -> float:
+        """dwell 상태의 남은 시간(초). 그 외 상태면 0."""
+        if self.state in (State.AUTO_DWELL_DOWN, State.AUTO_DWELL_UP) and self._t_dwell_end:
+            return max(0.0, self._t_dwell_end - self._now)
+        return 0.0
+
+    def auto_step(self) -> int:
+        """자동 사이클 단계 번호 1~4 (그 외 0)."""
+        return {
+            State.AUTO_MOVE_DOWN: 1, State.AUTO_DWELL_DOWN: 2,
+            State.AUTO_MOVE_UP: 3, State.AUTO_DWELL_UP: 4,
+        }.get(self.state, 0)
+
+    def vacuum_status(self) -> str:
+        """진공 4상태: OFF / BUILDING / OK / RESIDUAL."""
+        if self.vacuum_command:
+            return "OK" if self.vacuum_ok else "BUILDING"
+        return "RESIDUAL" if self.vacuum_ok else "OFF"
+
     def vacuum_permission(self):
         """(allowed, reason). 진공 ON 허용조건 (HMI handoff §6.1)."""
         if self.state is State.SAFETY_STOP:
