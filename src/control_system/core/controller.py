@@ -16,15 +16,18 @@
 
 import time
 
-from ..config import Config
+from ..config import Config, RuntimeSettings
 from ..hardware.signals import AI, DI1, DI2, DO1, DO2, IO
 from .safety import apply_output_safety
 from .states import Alarm, Outputs, State
 
 
 class Controller:
-    def __init__(self, cfg: Config, io: IO, loadcell, *, clock=time.monotonic) -> None:
+    def __init__(self, cfg: Config, io: IO, loadcell, *, settings: RuntimeSettings | None = None,
+                 clock=time.monotonic) -> None:
         self.cfg = cfg
+        # 운전 파라미터는 가변 설정에서 읽는다(조건설정 화면에서 편집·영속).
+        self.settings = settings if settings is not None else RuntimeSettings.from_config(cfg)
         self.io = io
         self.loadcell = loadcell
         self._clock = clock
@@ -36,7 +39,6 @@ class Controller:
 
         # 카운트/하중
         self.count = 0
-        self.target_count = cfg.target_count
         self.load_kgf = 0.0
         self.cycle_peak_load_kgf = 0.0             # 현재 사이클 최대
         self.run_peak_load_kgf = 0.0               # 전체 운전 최대
@@ -70,6 +72,10 @@ class Controller:
         self._cmd_load_zero = False
 
         self._now = self._clock()
+
+    @property
+    def target_count(self) -> int:
+        return self.settings.target_count
 
     # ================================================================= 명령 (HMI)
     def cmd_safety_reset(self) -> None:
@@ -256,29 +262,29 @@ class Controller:
         if self.alarms or not self.mode_auto or not self.sol_enable_ok:
             self._abort_auto(State.AUTO_IDLE)
             return
-        self._start_move(State.AUTO_MOVE_DOWN, self.cfg.down_timeout_ms)
+        self._start_move(State.AUTO_MOVE_DOWN, self.settings.down_timeout_ms)
 
     def _run_move_down(self) -> None:
         self.out.valve_down = True
-        if self.load_kgf > self.cfg.load_limit_kgf:
+        if self.load_kgf > self.settings.load_limit_kgf:
             self._fault(Alarm.LOAD_OVER_LIMIT)
             return
         if self.io.di(DI1.CYL_DOWN_POS):
-            self._start_dwell(State.AUTO_DWELL_DOWN, self.cfg.down_dwell_ms)
+            self._start_dwell(State.AUTO_DWELL_DOWN, self.settings.down_dwell_ms)
         elif self._deadline_passed():
             self._fault(Alarm.DOWN_TIMEOUT)
 
     def _run_dwell_down(self) -> None:
-        if self.load_kgf > self.cfg.load_limit_kgf:
+        if self.load_kgf > self.settings.load_limit_kgf:
             self._fault(Alarm.LOAD_OVER_LIMIT)
             return
         if self._now >= self._t_dwell_end:
-            self._start_move(State.AUTO_MOVE_UP, self.cfg.up_timeout_ms)
+            self._start_move(State.AUTO_MOVE_UP, self.settings.up_timeout_ms)
 
     def _run_move_up(self) -> None:
         self.out.valve_up = True
         if self.io.di(DI1.CYL_UP_POS):
-            self._start_dwell(State.AUTO_DWELL_UP, self.cfg.up_dwell_ms)
+            self._start_dwell(State.AUTO_DWELL_UP, self.settings.up_dwell_ms)
         elif self._deadline_passed():
             self._fault(Alarm.UP_TIMEOUT)
 
@@ -291,7 +297,7 @@ class Controller:
         if self.count >= self.target_count:
             self.state = State.AUTO_COMPLETE
         else:
-            self._start_move(State.AUTO_MOVE_DOWN, self.cfg.down_timeout_ms)
+            self._start_move(State.AUTO_MOVE_DOWN, self.settings.down_timeout_ms)
 
     # ----------------------------------------------------------------- 진공 (수동, 분리)
     def _update_vacuum(self) -> None:
@@ -304,7 +310,7 @@ class Controller:
         # 진공 도달 감시 (VACUUM_NOT_REACHED, 논블로킹 경고)
         if on:
             if not self._prev_vacuum_on:
-                self._t_vac_deadline = self._now + self.cfg.vacuum_confirm_timeout_ms / 1000.0
+                self._t_vac_deadline = self._now + self.settings.vacuum_confirm_timeout_ms / 1000.0
             if self.vacuum_ok:
                 self.vacuum_warnings.discard(Alarm.VACUUM_NOT_REACHED)
                 self._t_vac_deadline = None

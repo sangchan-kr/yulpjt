@@ -24,3 +24,23 @@ class CsvLogger:
         alarm_str = ";".join(sorted(a.value for a in alarms))
         with open(self.path, "a", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow([ts, count, f"{max_load_kgf:.1f}", alarm_str])
+
+
+class EventLog:
+    """메모리 상 이벤트/알람 링버퍼 (로그 페이지 표시용).
+
+    상태 변화, 알람 발생/해제, 진공 명령/경고 변화를 시각과 함께 기록한다.
+    """
+
+    def __init__(self, maxlen: int = 300) -> None:
+        self.maxlen = maxlen
+        self._items: list[tuple[str, str, str]] = []   # (time, code, detail)
+
+    def add(self, code: str, detail: str = "") -> None:
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        self._items.append((ts, code, detail))
+        if len(self._items) > self.maxlen:
+            self._items = self._items[-self.maxlen:]
+
+    def recent(self, n: int = 30) -> list[tuple[str, str, str]]:
+        return list(reversed(self._items[-n:]))

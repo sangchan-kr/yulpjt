@@ -34,11 +34,12 @@ repo(특히 이 문서)를 "단일 진실 소스"로 삼아 새 대화에서 맥
 | B | `bb06da1` | `core/` 제어 상태머신 |
 | C | `61c7d05` | HMI 단일화면 + 컨트롤러 연동 + 시뮬레이터 + CSV |
 | C2 | `0a322fc` | 진공 완전 분리(논블로킹 경고), timeout/peak 분리, HMI 설계 문서 |
-| C3 | (이번) | HMI 셸 재작성: 다크 테마 + 상단바/상태스트립/하단네비/페이지스택 + 메인페이지(목업 v0.3) + Safety 오버레이 |
+| C3 | `2c159aa` | HMI 셸: 다크 테마 + 상단바/상태스트립/하단네비/페이지스택 + 메인페이지(목업 v0.3) + Safety 오버레이 |
+| C4 | (이번) | 보조 페이지 실제화: 조건설정(터치 키패드+Idle전용+영속 RuntimeSettings) / 시스템상태(통신·프로세스·ADAM I/O·진공 출력허가) / 로그(운전CSV+이벤트) / 도움말. 운전 파라미터는 `RuntimeSettings`(settings.json)로 이동 |
 
 기존 2026-05 초기 bring-up(HX711 기반)은 `main` 브랜치에 그대로 보존.
 v1.12 재구성은 전부 이 feature 브랜치에 있고 **mock 으로만 검증됨(실 하드웨어 미연결)**.
-HMI 단계 정의는 [hmi-design.md](hmi-design.md) 참고. 남은 HMI: C4(조건설정/시스템상태/로그/도움말 실제화), C5(유지보수/트렌드/권한/CSV export).
+HMI 단계 정의는 [hmi-design.md](hmi-design.md) 참고. 남은 HMI: C5(유지보수 페이지 blow-off/DO시험/교정, 하중 실시간 트렌드, 사용자 권한, CSV export).
 
 ## 2. 코드 지도
 

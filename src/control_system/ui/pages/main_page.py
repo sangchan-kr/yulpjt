@@ -164,13 +164,13 @@ class MainPage(QWidget):
         else:
             self._arrow.setText("■"); self._arrow.setStyleSheet(f"font-size:56px;font-weight:900;color:{theme.OFF};")
 
-        self._down_dwell.setText(f"{c.cfg.down_dwell_ms/1000:.2f} s")
-        self._up_dwell.setText(f"{c.cfg.up_dwell_ms/1000:.2f} s")
+        self._down_dwell.setText(f"{c.settings.down_dwell_ms/1000:.2f} s")
+        self._up_dwell.setText(f"{c.settings.up_dwell_ms/1000:.2f} s")
 
         self._load.setText(f"{c.load_kgf:.1f} kgf")
         self._cyc_peak.setText(f"{c.cycle_peak_load_kgf:.1f}")
         self._run_peak.setText(f"{c.run_peak_load_kgf:.1f}")
-        self._limit.setText(f"{c.cfg.load_limit_kgf:.1f}")
+        self._limit.setText(f"{c.settings.load_limit_kgf:.1f}")
 
         pct = int(c.count / c.target_count * 100) if c.target_count else 0
         self._count_lbl.setText(f"반복 횟수 {c.count} / {c.target_count}")

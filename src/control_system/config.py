@@ -125,6 +125,69 @@ class Config:
         return replace(cfg, **overrides) if overrides else cfg
 
 
+@dataclass
+class RuntimeSettings:
+    """작업자가 조건설정 화면에서 바꾸는 운전 파라미터 (가변, 디스크 영속).
+
+    Config(정적/하드웨어)와 분리한다. 재부팅 시 이 값들은 복원하지만
+    명령/상태(진공/밸브/Auto)는 복원하지 않는다(HMI handoff §18).
+    컨트롤러는 매 스캔 여기서 값을 읽으므로 저장 즉시 반영된다.
+    """
+    target_count: int = 500
+    down_dwell_ms: int = 2000
+    up_dwell_ms: int = 1000
+    down_timeout_ms: int = 5000
+    up_timeout_ms: int = 5000
+    load_limit_kgf: float = 500.0
+    vacuum_confirm_timeout_ms: int = 2000
+    data_save: bool = True                 # 사이클 CSV 로깅 on/off
+    trend_window_s: int = 30               # 실시간 그래프 구간 (C5)
+    brightness: int = 80                   # 화면 밝기 % (적용은 배포 환경에서)
+
+    _EDITABLE = (
+        "target_count", "down_dwell_ms", "up_dwell_ms", "down_timeout_ms",
+        "up_timeout_ms", "load_limit_kgf", "vacuum_confirm_timeout_ms",
+        "data_save", "trend_window_s", "brightness",
+    )
+
+    @classmethod
+    def from_config(cls, cfg: "Config") -> "RuntimeSettings":
+        return cls(
+            target_count=cfg.target_count,
+            down_dwell_ms=cfg.down_dwell_ms,
+            up_dwell_ms=cfg.up_dwell_ms,
+            down_timeout_ms=cfg.down_timeout_ms,
+            up_timeout_ms=cfg.up_timeout_ms,
+            load_limit_kgf=cfg.load_limit_kgf,
+            vacuum_confirm_timeout_ms=cfg.vacuum_confirm_timeout_ms,
+        )
+
+    @classmethod
+    def load(cls, path: str, cfg: "Config") -> "RuntimeSettings":
+        """디스크에서 복원. 파일이 없거나 깨졌으면 Config 기본값."""
+        import json
+        import os
+        s = cls.from_config(cfg)
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                for k in cls._EDITABLE:
+                    if k in data:
+                        setattr(s, k, data[k])
+            except (OSError, ValueError):
+                pass
+        return s
+
+    def save(self, path: str) -> None:
+        import json
+        import os
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        data = {k: getattr(self, k) for k in self._EDITABLE}
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+
 def print_help() -> None:
     print(AMP_GAIN_HELP)
 

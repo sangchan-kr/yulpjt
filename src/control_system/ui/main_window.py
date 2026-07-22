@@ -5,6 +5,7 @@ QTimer 로 controller.scan() 을 주기 실행하고 공통 영역/현재 페이
 """
 
 import datetime
+import time
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCursor, QKeyEvent
@@ -17,9 +18,12 @@ from ..config import Config
 from ..core.controller import Controller
 from ..core.states import State
 from . import theme
-from .logging_csv import CsvLogger
+from .logging_csv import CsvLogger, EventLog
+from .pages.help_page import HelpPage
+from .pages.logs_page import LogsPage
 from .pages.main_page import MainPage
-from .pages.placeholders import PlaceholderPage
+from .pages.settings_page import SettingsPage
+from .pages.status_page import StatusPage
 from .sim_panel import SimPanel
 
 _AUTO_RUNNING = {
@@ -30,12 +34,20 @@ _AUTO_RUNNING = {
 
 class MainWindow(QMainWindow):
     def __init__(self, cfg: Config, controller: Controller, adam1, adam2, adam4017,
-                 logger: CsvLogger) -> None:
+                 logger: CsvLogger, settings_path: str = "settings.json",
+                 event_log: EventLog | None = None) -> None:
         super().__init__()
         self.cfg = cfg
         self.ctrl = controller
         self.logger = logger
+        self.settings_path = settings_path
+        self.event_log = event_log if event_log is not None else EventLog()
+        self._start = time.monotonic()
         self._prev_count = controller.count
+        self._prev_state = controller.state
+        self._prev_alarms: set = set()
+        self._prev_vac_cmd = controller.vacuum_command
+        self._prev_vac_warn: set = set()
         self.setWindowTitle("반복 가압 측정기")
         if not cfg.mock_hardware:
             self.setCursor(QCursor(Qt.CursorShape.BlankCursor))
@@ -114,10 +126,10 @@ class MainWindow(QMainWindow):
         self._main_page = MainPage(self.ctrl)
         self._pages = [
             ("운전", self._main_page),
-            ("조건설정", PlaceholderPage("운전 조건 설정")),
-            ("시스템상태", PlaceholderPage("시스템 상태")),
-            ("로그", PlaceholderPage("로그 및 트렌드")),
-            ("도움말", PlaceholderPage("도움말")),
+            ("조건설정", SettingsPage(self.ctrl, self.settings_path, self.cfg)),
+            ("시스템상태", StatusPage(self.ctrl, a1, a2, ai, self._start)),
+            ("로그", LogsPage(self.logger.path, self.event_log)),
+            ("도움말", HelpPage()),
         ]
         if self.cfg.mock_hardware:
             self._pages.append(("SIM", SimPanel(self.cfg, a1, a2, ai)))
@@ -193,6 +205,7 @@ class MainWindow(QMainWindow):
     # ---------------------------------------------------------------- 주기 갱신
     def _tick(self) -> None:
         self.ctrl.scan()
+        self._collect_events()
         self._update_topbar()
         self._update_strip()
         page = self._stack.currentWidget()
@@ -200,6 +213,21 @@ class MainWindow(QMainWindow):
             page.update_view()
         self._maybe_log()
         self._update_overlay()
+
+    def _collect_events(self) -> None:
+        c = self.ctrl
+        if c.state is not self._prev_state:
+            self.event_log.add("STATE", f"{self._prev_state.value} → {c.state.value}")
+            self._prev_state = c.state
+        for a in c.alarms - self._prev_alarms:
+            self.event_log.add("ALARM", a.value)
+        self._prev_alarms = set(c.alarms)
+        if c.vacuum_command != self._prev_vac_cmd:
+            self.event_log.add("VACUUM_COMMAND", "ON" if c.vacuum_command else "OFF")
+            self._prev_vac_cmd = c.vacuum_command
+        for w in c.vacuum_warnings - self._prev_vac_warn:
+            self.event_log.add("VACUUM_WARN", w.value)
+        self._prev_vac_warn = set(c.vacuum_warnings)
 
     def _update_topbar(self) -> None:
         c = self.ctrl
@@ -261,7 +289,7 @@ class MainWindow(QMainWindow):
             self._overlay.hide()
 
     def _maybe_log(self) -> None:
-        if self.ctrl.count > self._prev_count:
+        if self.ctrl.count > self._prev_count and self.ctrl.settings.data_save:
             self.logger.log_cycle(self.ctrl.count, self.ctrl.run_peak_load_kgf, self.ctrl.alarms)
         self._prev_count = self.ctrl.count
 

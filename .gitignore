@@ -14,3 +14,4 @@ __pycache__/
 *.log
 data/
 calibration.json
+settings.json
