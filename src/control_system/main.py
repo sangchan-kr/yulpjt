@@ -1,4 +1,5 @@
 import sys
+from os import environ
 
 from PySide6.QtWidgets import QApplication
 
@@ -53,9 +54,18 @@ def main() -> int:
     window = MainWindow(cfg, controller, a1, a2, ai, logger,
                         settings_path=SETTINGS_PATH, event_log=events, hub=hub)
 
+    debug_win = None
     if cfg.mock_hardware:
         window.resize(1024, 600)   # 노트북 개발: 창 모드
+        window.move(0, 0)
         window.show()
+        # mock 디버그 창(별도): DI 주입 + DO 관찰 + 로드셀 슬라이더. DEBUG_IO=0 로 끌 수 있음.
+        if environ.get("DEBUG_IO", "1") == "1":
+            from .ui.debug_window import DebugWindow
+            debug_win = DebugWindow(controller, a1, a2, ai)
+            debug_win.move(1030, 0)
+            debug_win.show()
+            window.destroyed.connect(debug_win.close)
     else:
         window.showFullScreen()    # 장비: 키오스크
 
