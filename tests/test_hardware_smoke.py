@@ -72,6 +72,19 @@ def test_loadcell_wire_break():
     assert not lc.current_valid()
 
 
+def test_loadcell_calibrate_span():
+    cfg, a1, a2, ai, io = _build()
+    tmp = os.path.join(tempfile.gettempdir(), "cal_span.json")
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    lc = LoadCell(ai, 0, cfg.loadcell_full_scale_kgf, tmp)
+    ai.set_mock_ma(0, 7.2)                 # (7.2-4)/16*1000 = 200 kgf raw
+    assert abs(lc.read_raw_kgf() - 200.0) < 1e-6
+    assert lc.calibrate_span(100.0) is True  # 기준 100 → scale 0.5
+    assert abs(lc.scale - 0.5) < 1e-6
+    assert abs(lc.read_kgf() - 100.0) < 1e-6
+
+
 def test_di_named_read():
     cfg, a1, a2, ai, io = _build()
     a1.set_mock_di(int(DI1.MODE_AUTO), True)

@@ -387,6 +387,35 @@ def test_maintenance_blowoff_hold():
     assert ctrl.out.blow_off_on is False       # 해제 → OFF
 
 
+def test_do_override_tower_only():
+    ctrl, a1, a2, ai, clk = _build()
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, False)
+    ctrl.scan()                                # MANUAL_IDLE
+    ctrl.set_do_override(DO1.TOWER_GREEN, True)
+    ctrl.set_do_override(DO1.K_VALVE_DOWN, True)  # 액추에이터 → 무시돼야 함
+    ctrl.scan()
+    assert a1.read_do()[int(DO1.TOWER_GREEN)] is True
+    assert a1.read_do()[int(DO1.K_VALVE_DOWN)] is False
+    ctrl.clear_do_overrides()
+    assert ctrl._do_override == {}
+
+
+def test_do_override_ignored_when_auto_running():
+    ctrl, a1, a2, ai, clk = _build()
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, True)
+    ctrl.scan()
+    _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+    clk.advance(0.03); ctrl.scan()             # 자동 진행 중
+    assert ctrl._auto_running()
+    ctrl.set_do_override(DO1.TOWER_GREEN, True)
+    clk.advance(0.03); ctrl.scan()
+    # 자동운전 중에는 오버라이드가 출력에 반영되지 않는다(컨트롤러 타워 로직이 유지).
+    # 저장(튜플 키)은 되지만 _stage_and_flush 에서 auto_running 게이트로 미적용.
+    assert ("DO1", int(DO1.TOWER_GREEN)) in ctrl._do_override
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

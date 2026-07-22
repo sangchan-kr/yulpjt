@@ -60,6 +60,19 @@ class LoadCell:
         self.scale = scale
         self.save_calibration()
 
+    def calibrate_span(self, known_kgf: float) -> bool:
+        """기준 하중(known_kgf)을 올린 상태에서 호출 → scale 재계산.
+
+        영점(zero_offset) 적용 후 측정값 대비 기준값으로 scale 을 맞춘다.
+        측정값이 0 이거나 기준값이 0 이하면 무시(False).
+        """
+        measured = self.read_raw_kgf() - self.zero_offset
+        if measured <= 0 or known_kgf <= 0:
+            return False
+        self.scale = known_kgf / measured
+        self.save_calibration()
+        return True
+
     def load_calibration(self) -> None:
         if not os.path.exists(self.calibration_path):
             return

@@ -65,6 +65,9 @@ class Controller:
         self._maint_blowoff_req = False            # 유지보수 hold-to-run
         self._prev_maint_req = False
 
+        # 유지보수 DO 시험 오버라이드 (타워/부저/예비 등 안전 채널만)
+        self._do_override: dict = {}
+
         # HMI 명령 플래그
         self._cmd_safety_reset = False
         self._cmd_alarm_clear = False
@@ -102,6 +105,23 @@ class Controller:
     def request_maintenance_blowoff(self, on: bool) -> None:
         """유지보수 화면 전용 blow-off hold-to-run 요청."""
         self._maint_blowoff_req = bool(on)
+
+    # 유지보수 DO 시험: 타워/부저/예비 채널만 강제 출력(액추에이터/진공 제외).
+    # 주의: DO1/DO2 는 IntEnum 이라 채널 번호가 겹치면 서로 == 로 판정된다.
+    # 따라서 모듈 타입 + 채널번호로 판별하고, override 도 (타입, 번호) 키로 저장한다.
+    _DO1_TEST = frozenset({0, 1, 2, 3, 6, 7})   # 타워 G/Y/R/부저 + 예비
+    _DO2_TEST = frozenset({2, 3, 4, 5, 6, 7})   # 진공/파기(0,1) 제외한 예비
+
+    def set_do_override(self, sig, value: bool) -> None:
+        allowed = (
+            (isinstance(sig, DO1) and int(sig) in self._DO1_TEST)
+            or (isinstance(sig, DO2) and int(sig) in self._DO2_TEST)
+        )
+        if allowed:
+            self._do_override[(type(sig).__name__, int(sig))] = (sig, bool(value))
+
+    def clear_do_overrides(self) -> None:
+        self._do_override = {}
 
     # ------------------------------------------------------------- 표시 헬퍼 (HMI)
     def remaining_dwell_s(self) -> float:
@@ -389,6 +409,10 @@ class Controller:
         self.io.set(DO1.TOWER_BUZZER, o.tower_buzzer)
         self.io.set(DO2.K_VACUUM_ON, o.vacuum_on)
         self.io.set(DO2.K_BLOW_OFF_ON, o.blow_off_on)
+        # 유지보수 DO 시험 오버라이드(안전 채널만) — 자동운전 중이 아닐 때만 반영.
+        if self._do_override and not self._auto_running():
+            for sig, val in self._do_override.values():
+                self.io.set(sig, val)
         self.io.flush_outputs()
 
     # ----------------------------------------------------------------- 헬퍼

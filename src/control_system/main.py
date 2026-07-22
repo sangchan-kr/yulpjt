@@ -51,7 +51,7 @@ def main() -> int:
     logger = CsvLogger(RUN_LOG_PATH)
     events = EventLog()
     window = MainWindow(cfg, controller, a1, a2, ai, logger,
-                        settings_path=SETTINGS_PATH, event_log=events)
+                        settings_path=SETTINGS_PATH, event_log=events, hub=hub)
 
     if cfg.mock_hardware:
         window.resize(1024, 600)   # 노트북 개발: 창 모드

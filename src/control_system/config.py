@@ -106,6 +106,10 @@ class Config:
     # --- 입력 논리 반전 (NPN 등, v1.12 §7.2) ------------------------------
     invert_vacuum_ok: bool = False      # ZK2A NPN 스위치 결선 검증 후 결정 (Phase D)
 
+    # --- 유지보수 (관리자) -------------------------------------------------
+    maintenance_passcode: str = "1234"  # 유지보수 페이지 진입 암호
+    maintenance_timeout_s: int = 300    # 미조작 시 자동 잠금(서비스 타임아웃)
+
     # ---------------------------------------------------------------------
     @classmethod
     def from_env(cls) -> "Config":

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from ...core.states import State
 from .. import theme
+from ..trend import TrendWidget
 
 _STAGE_KO = {
     State.BOOT: "초기화", State.AUTO_IDLE: "자동 대기", State.AUTO_PRECHECK: "사전 점검",
@@ -49,9 +50,10 @@ def _mini(title: str) -> tuple[QFrame, QLabel]:
 
 
 class MainPage(QWidget):
-    def __init__(self, controller) -> None:
+    def __init__(self, controller, trend) -> None:
         super().__init__()
         self.ctrl = controller
+        self._trend = trend
         root = QHBoxLayout(self)
         root.setContentsMargins(12, 10, 12, 10)
         root.setSpacing(12)
@@ -106,6 +108,9 @@ class MainPage(QWidget):
         stats.addWidget(f2)
         stats.addWidget(f3)
         lay.addLayout(stats)
+
+        self._trend_w = TrendWidget(self._trend, limit_getter=lambda: self.ctrl.settings.load_limit_kgf)
+        lay.addWidget(self._trend_w)
 
         self._count_lbl = QLabel("반복 횟수 0 / 0")
         self._count_lbl.setStyleSheet("font-weight:800;")
@@ -190,3 +195,4 @@ class MainPage(QWidget):
         self._vac_warn.setText(f"⚠ {warns}" if warns else "")
 
         self._btn_reset.setEnabled(c.state is State.SAFETY_STOP and c.sol_enable_ok)
+        self._trend_w.update()

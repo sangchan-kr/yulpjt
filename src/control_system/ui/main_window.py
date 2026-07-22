@@ -18,13 +18,16 @@ from ..config import Config
 from ..core.controller import Controller
 from ..core.states import State
 from . import theme
+from .keypad import edit_number
 from .logging_csv import CsvLogger, EventLog
 from .pages.help_page import HelpPage
 from .pages.logs_page import LogsPage
 from .pages.main_page import MainPage
+from .pages.maintenance_page import MaintenancePage
 from .pages.settings_page import SettingsPage
 from .pages.status_page import StatusPage
 from .sim_panel import SimPanel
+from .trend import LoadTrend
 
 _AUTO_RUNNING = {
     State.AUTO_PRECHECK, State.AUTO_MOVE_DOWN, State.AUTO_DWELL_DOWN,
@@ -35,14 +38,17 @@ _AUTO_RUNNING = {
 class MainWindow(QMainWindow):
     def __init__(self, cfg: Config, controller: Controller, adam1, adam2, adam4017,
                  logger: CsvLogger, settings_path: str = "settings.json",
-                 event_log: EventLog | None = None) -> None:
+                 event_log: EventLog | None = None, hub=None) -> None:
         super().__init__()
         self.cfg = cfg
         self.ctrl = controller
         self.logger = logger
+        self.hub = hub
         self.settings_path = settings_path
         self.event_log = event_log if event_log is not None else EventLog()
         self._start = time.monotonic()
+        self._trend = LoadTrend()
+        self._maint_deadline = None
         self._prev_count = controller.count
         self._prev_state = controller.state
         self._prev_alarms: set = set()
@@ -83,8 +89,10 @@ class MainWindow(QMainWindow):
         self._state_badge = QLabel("IDLE")
         self._clock = QLabel("")
         self._clock.setObjectName("clock")
-        gear = QLabel("⚙")
+        gear = QPushButton("⚙")
+        gear.setFixedWidth(48)
         gear.setStyleSheet("font-size:20px;")
+        gear.clicked.connect(self._open_maintenance)
         lay.addWidget(brand)
         lay.addSpacing(12)
         lay.addWidget(self._mode_badge)
@@ -123,7 +131,7 @@ class MainWindow(QMainWindow):
     # ---------------------------------------------------------------- 페이지 스택
     def _build_stack(self, a1, a2, ai) -> QStackedWidget:
         self._stack = QStackedWidget()
-        self._main_page = MainPage(self.ctrl)
+        self._main_page = MainPage(self.ctrl, self._trend)
         self._pages = [
             ("운전", self._main_page),
             ("조건설정", SettingsPage(self.ctrl, self.settings_path, self.cfg)),
@@ -135,6 +143,10 @@ class MainWindow(QMainWindow):
             self._pages.append(("SIM", SimPanel(self.cfg, a1, a2, ai)))
         for _, w in self._pages:
             self._stack.addWidget(w)
+        # 유지보수는 하단 네비에 없고 ⚙ 암호로만 진입.
+        self._maint_page = MaintenancePage(self.ctrl, self.ctrl.loadcell, self.hub, self.logger.path)
+        self._maint_index = self._stack.addWidget(self._maint_page)
+        self._stack.currentChanged.connect(self._on_page_changed)
         return self._stack
 
     # ---------------------------------------------------------------- 하단 네비
@@ -202,9 +214,35 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._layout_overlay()
 
+    # ---------------------------------------------------------------- 유지보수 진입
+    def _open_maintenance(self) -> None:
+        code = edit_number(self, "유지보수 암호", 0, is_float=False)
+        if code is None:
+            return
+        if str(int(code)) != str(self.cfg.maintenance_passcode):
+            self.event_log.add("MAINT", "암호 오류")
+            return
+        self._maint_deadline = time.monotonic() + self.cfg.maintenance_timeout_s
+        self._stack.setCurrentIndex(self._maint_index)
+        self.event_log.add("MAINT", "유지보수 진입")
+
+    def _on_page_changed(self, index: int) -> None:
+        # 유지보수에서 벗어나면 모든 시험 출력 OFF.
+        if index != self._maint_index:
+            self._maint_page.on_leave()
+            self._maint_deadline = None
+            # 하단 네비 하이라이트 동기화
+            if index < self._nav_group.buttons().__len__():
+                btn = self._nav_group.button(index)
+                if btn:
+                    btn.setChecked(True)
+
     # ---------------------------------------------------------------- 주기 갱신
     def _tick(self) -> None:
         self.ctrl.scan()
+        self._trend.add(self.ctrl.load_kgf)
+        if self._maint_deadline and time.monotonic() > self._maint_deadline:
+            self._stack.setCurrentIndex(0)      # 서비스 타임아웃 → 운전 화면
         self._collect_events()
         self._update_topbar()
         self._update_strip()
