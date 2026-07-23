@@ -1,6 +1,6 @@
 # 개발 현황 & 재개 가이드 (v1.12)
 
-최종 갱신: 2026-07-15 · 브랜치: `feature/v1.12-refactor`
+최종 갱신: 2026-07-23 · 브랜치: `feature/v1.12-refactor` (origin 에 푸시됨)
 
 노트북에서 나중에 이어서 개발할 때 이 문서부터 보면 된다.
 (왜/무엇을 바꿨는지는 [refactor-plan-v1.12.md](refactor-plan-v1.12.md) 참고)
@@ -26,7 +26,7 @@ repo(특히 이 문서)를 "단일 진실 소스"로 삼아 새 대화에서 맥
 
 ---
 
-## 1. 지금까지 한 것 (Phase A → B → C 완료, mock 검증)
+## 1. 지금까지 한 것 (Phase A~C5 + 디버그 창 완료, mock 검증)
 
 | 단계 | 커밋 | 내용 |
 |---|---|---|
@@ -36,7 +36,8 @@ repo(특히 이 문서)를 "단일 진실 소스"로 삼아 새 대화에서 맥
 | C2 | `0a322fc` | 진공 완전 분리(논블로킹 경고), timeout/peak 분리, HMI 설계 문서 |
 | C3 | `2c159aa` | HMI 셸: 다크 테마 + 상단바/상태스트립/하단네비/페이지스택 + 메인페이지(목업 v0.3) + Safety 오버레이 |
 | C4 | `1359145` | 보조 페이지 실제화: 조건설정(터치 키패드+Idle전용+영속 RuntimeSettings) / 시스템상태(통신·프로세스·ADAM I/O·진공 출력허가) / 로그(운전CSV+이벤트) / 도움말. 운전 파라미터는 `RuntimeSettings`(settings.json)로 이동 |
-| C5 | (이번) | 유지보수 페이지(⚙ 암호 진입, 진공/blow-off hold-to-run, DO 시험(타워/부저), Load Zero/Span 교정, Modbus 재연결, 로그 export) + 하중 실시간 트렌드(메인) + 서비스 타임아웃. IntEnum 교차비교 버그 수정 |
+| C5 | `77e8173` | 유지보수 페이지(⚙ 암호 진입, 진공/blow-off hold-to-run, DO 시험(타워/부저), Load Zero/Span 교정, Modbus 재연결, 로그 export) + 하중 실시간 트렌드(메인) + 서비스 타임아웃. IntEnum 교차비교 버그 수정 |
+| dbg | `33b8eb9` | mock 전용 **I/O 디버그 창**(별도 top-level): 모든 DI 주입(비상정지 바이패스 포함) + DO 실시간 램프 + 로드셀 슬라이더. `DEBUG_IO=0` 로 끔 |
 
 기존 2026-05 초기 bring-up(HX711 기반)은 `main` 브랜치에 그대로 보존.
 v1.12 재구성은 전부 이 feature 브랜치에 있고 **mock 으로만 검증됨(실 하드웨어 미연결)**.
@@ -51,25 +52,30 @@ DO1/DO2/DI1/DI2 는 IntEnum 이라 채널 번호가 같으면 서로 `==`/hash �
 
 ```
 src/control_system/
-├── config.py              설정 + 환경변수 오버라이드 + 앰프 게인 help
-├── main.py                조립: 허브→ADAM→IO→로드셀→Controller→HMI
+├── config.py              Config(정적) + RuntimeSettings(가변·settings.json) + 앰프 게인 help
+├── main.py                조립: 허브→ADAM→IO→로드셀→Controller→HMI(+mock 디버그 창)
 ├── hardware/
 │   ├── signals.py         이름 있는 신호(DI1/DO1/DI2/DO2/AI) + IO 파사드(stage/flush)
 │   ├── modbus_hub.py      RS-485 버스 pymodbus 래퍼 / mock
 │   ├── adam4055.py        복합 8DI+8DO 모듈 (×2)
 │   ├── adam4017.py        8ch 아날로그 입력 (4-20mA)
-│   └── loadcell.py        4-20mA→kgf 환산 + tare/scale + calibration.json
+│   └── loadcell.py        4-20mA→kgf 환산 + tare/scale/span + calibration.json
 ├── core/
-│   ├── states.py          State(12) / Alarm(9) / Outputs
+│   ├── states.py          State(12) / Alarm(블로킹6+진공경고3) / Outputs
 │   ├── safety.py          apply_output_safety() 단일 출력 초크포인트(§19)
-│   └── controller.py      scan() 상태머신 (Auto/Manual/Safety/수동진공/알람/타워)
+│   └── controller.py      scan() 상태머신 (Auto/Manual/Safety/수동진공/알람/타워/DO시험)
 └── ui/
-    ├── main_window.py     HMI (타워·하중·상태·카운트·진공·알람 + 조작 버튼)
-    ├── sim_panel.py       mock 입력 시뮬레이터 (체크박스/순간버튼/하중슬라이더)
-    └── logging_csv.py     사이클당 CSV 로깅
+    ├── theme.py           다크 팔레트 + 전역 QSS
+    ├── main_window.py     셸: 상단바/상태스트립/하단네비/QStackedWidget/Safety 오버레이/⚙유지보수
+    ├── keypad.py          터치 숫자 키패드
+    ├── trend.py           LoadTrend 링버퍼 + QPainter 하중 트렌드 위젯
+    ├── sim_panel.py       mock 입력 시뮬레이터(HMI 내 SIM 탭)
+    ├── debug_window.py    mock 전용 별도 I/O 디버그 창(DI 주입 + DO 램프 + 로드셀)
+    ├── logging_csv.py     사이클 CSV + EventLog(메모리 이벤트)
+    └── pages/             main / settings / status / logs / help / maintenance
 tests/
-├── test_hardware_smoke.py  하드웨어 계층 6종
-└── test_controller.py      상태머신 15종
+├── test_hardware_smoke.py  하드웨어 계층 7종
+└── test_controller.py      상태머신 24종
 ```
 
 ## 3. 재개 방법 (새 노트북/클린 체크아웃)
@@ -78,12 +84,22 @@ tests/
 git clone https://github.com/sangchan-kr/yulpjt.git
 cd yulpjt
 git checkout feature/v1.12-refactor
-py -3.14 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
+py -3.14 -m venv .venv            # Python 3.11+ 이면 됨(PySide6 6.11 은 abi3 휠)
+.\.venv\Scripts\python.exe -m pip install -e .   # PySide6/pymodbus/pyserial 설치(인터넷 필요)
 $env:MOCK_HW="1"; .\.venv\Scripts\python.exe -m control_system
 ```
 
-테스트: `.\.venv\Scripts\python.exe tests\test_hardware_smoke.py` / `tests\test_controller.py`
+- 실행하면 **창 2개**가 뜬다: 왼쪽 **HMI**, 오른쪽 **I/O 디버그(mock)**.
+- 첫 실행은 `SOL_ENABLE_OK` 가 꺼져 있어 **SAFETY STOP** 이 정상이다.
+  디버그 창에서 `ADAM #1 → 7 SOL_ENABLE_OK` 를 체크하면 풀린다(비상정지 바이패스).
+- 디버그 창: 왼쪽=DI 주입(체크박스, 순간버튼은 켰다 끄기), 가운데=로드셀 슬라이더,
+  오른쪽=DO 실시간 램프. `⚙` 유지보수 암호는 `1234`(config).
+- `settings.json` / `calibration.json` / `data/` 는 gitignore. 없으면 앱이 기본값으로 만든다.
+- 디버그 창 없이 HMI 만: `$env:DEBUG_IO="0"` 후 실행.
+
+테스트(둘 다 서드파티 없이 bare python 으로도 실행됨):
+`.\.venv\Scripts\python.exe tests\test_hardware_smoke.py` / `tests\test_controller.py`
+(현재 각각 7/7, 24/24 통과)
 
 ## 4. 확정된 설계 결정
 
