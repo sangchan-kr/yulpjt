@@ -1,13 +1,13 @@
-"""메인 운전 페이지 (목업 v0.3 §5).
+"""메인 운전 페이지 (목업 v0.4 §5).
 
-좌: 현재 공정(상태/step/실린더/dwell)  ·  우: 하중 모니터 + 진공 + 조작.
-컨트롤러 상태를 update() 로 읽어 그리고, 버튼은 컨트롤러 명령으로 연결한다.
+좌: 현재 동작(상태/step/실린더/dwell)  ·  우: 현재 하중 + 진공 + 조작.
+컨트롤러 상태를 update_view() 로 읽어 그리고, 버튼은 컨트롤러 명령으로 연결한다.
 진공 경고는 논블로킹이라 진공 영역에만 표시(다른 표시에 영향 없음).
 """
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar,
+    QFrame, QHBoxLayout, QLabel, QProgressBar,
     QPushButton, QVBoxLayout, QWidget,
 )
 
@@ -28,22 +28,25 @@ def _card(title: str):
     frame = QFrame()
     frame.setObjectName("card")
     lay = QVBoxLayout(frame)
-    lay.setContentsMargins(12, 10, 12, 10)
+    lay.setContentsMargins(14, 12, 14, 12)
+    lay.setSpacing(10)
     head = QLabel(title)
     head.setObjectName("cardTitle")
     lay.addWidget(head)
     return frame, lay, head
 
 
-def _mini(title: str) -> tuple[QFrame, QLabel]:
+def _stat(title: str) -> tuple[QFrame, QLabel]:
+    """라이트 회색 스탯 박스: 상단 라벨(muted) + 하단 값(bold)."""
     f = QFrame()
-    f.setObjectName("card")
+    f.setObjectName("stat")
     v = QVBoxLayout(f)
-    v.setContentsMargins(9, 7, 9, 7)
+    v.setContentsMargins(11, 8, 11, 8)
+    v.setSpacing(2)
     t = QLabel(title)
-    t.setObjectName("mini")
+    t.setObjectName("statLabel")
     val = QLabel("-")
-    val.setStyleSheet("font-size:17px; font-weight:800;")
+    val.setObjectName("statValue")
     v.addWidget(t)
     v.addWidget(val)
     return f, val
@@ -60,9 +63,9 @@ class MainPage(QWidget):
         root.addWidget(self._process_card(), 1)
         root.addWidget(self._monitor_card(), 1)
 
-    # ---------------------------------------------------------------- 좌: 공정
+    # ---------------------------------------------------------------- 좌: 현재 동작
     def _process_card(self) -> QFrame:
-        frame, lay, head = _card("현재 공정")
+        frame, lay, head = _card("현재 동작")
         self._step = QLabel("-")
         self._step.setObjectName("mini")
         head_row = QHBoxLayout()
@@ -73,7 +76,7 @@ class MainPage(QWidget):
         lay.insertLayout(0, head_row)
 
         self._stage = QLabel("-")
-        self._stage.setStyleSheet("font-size:30px; font-weight:900;")
+        self._stage.setStyleSheet(f"font-size:34px; font-weight:900; color:{theme.TITLE};")
         lay.addWidget(self._stage)
         self._sub = QLabel("-")
         self._sub.setObjectName("mini")
@@ -81,29 +84,40 @@ class MainPage(QWidget):
 
         self._arrow = QLabel("■")
         self._arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._arrow.setStyleSheet(f"font-size:56px; font-weight:900; color:{theme.GREEN};")
+        self._arrow.setStyleSheet(f"font-size:64px; font-weight:900; color:{theme.GREEN};")
         lay.addWidget(self._arrow, 1)
 
         row = QHBoxLayout()
-        f1, self._down_dwell = _mini("DOWN DWELL")
-        f2, self._up_dwell = _mini("UP DWELL")
+        row.setSpacing(10)
+        f1, self._down_dwell = _stat("하강 유지시간")
+        f2, self._up_dwell = _stat("상승 유지시간")
         row.addWidget(f1)
         row.addWidget(f2)
         lay.addLayout(row)
         return frame
 
-    # ---------------------------------------------------------------- 우: 모니터
+    # ---------------------------------------------------------------- 우: 현재 하중
     def _monitor_card(self) -> QFrame:
-        frame, lay, head = _card("하중 모니터")
+        frame, lay, head = _card("현재 하중")
+        self._src = QLabel("로드셀")
+        self._src.setObjectName("mini")
+        head_row = QHBoxLayout()
+        head_row.addWidget(head)
+        head_row.addStretch(1)
+        head_row.addWidget(self._src)
+        lay.takeAt(0)
+        lay.insertLayout(0, head_row)
+
         self._load = QLabel("--- kgf")
         self._load.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._load.setStyleSheet("font-size:46px; font-weight:900;")
+        self._load.setStyleSheet(f"font-size:52px; font-weight:900; color:{theme.TITLE};")
         lay.addWidget(self._load)
 
         stats = QHBoxLayout()
-        f1, self._cyc_peak = _mini("사이클 최대")
-        f2, self._run_peak = _mini("운전 최대")
-        f3, self._limit = _mini("상한")
+        stats.setSpacing(10)
+        f1, self._cyc_peak = _stat("현재 최대")
+        f2, self._run_peak = _stat("운전 최대")
+        f3, self._limit = _stat("하중 상한")
         stats.addWidget(f1)
         stats.addWidget(f2)
         stats.addWidget(f3)
@@ -112,23 +126,32 @@ class MainPage(QWidget):
         self._trend_w = TrendWidget(self._trend, limit_getter=lambda: self.ctrl.settings.load_limit_kgf)
         lay.addWidget(self._trend_w)
 
+        cnt_row = QHBoxLayout()
         self._count_lbl = QLabel("반복 횟수 0 / 0")
         self._count_lbl.setStyleSheet("font-weight:800;")
-        lay.addWidget(self._count_lbl)
+        self._pct_lbl = QLabel("0%")
+        self._pct_lbl.setStyleSheet(f"font-weight:800; color:{theme.MUTED};")
+        cnt_row.addWidget(self._count_lbl)
+        cnt_row.addStretch(1)
+        cnt_row.addWidget(self._pct_lbl)
+        lay.addLayout(cnt_row)
         self._progress = QProgressBar()
         self._progress.setRange(0, 100)
         self._progress.setValue(0)
+        self._progress.setTextVisible(False)
         lay.addWidget(self._progress)
 
-        # 진공 영역 (완전 분리 — Command/OK 별도 표시 + 큰 토글 + 경고)
+        # 진공 영역 (완전 분리 — 명령/확인 별도 표시 + 큰 토글 + 경고)
         vac = QHBoxLayout()
-        fc, self._vac_cmd = _mini("VACUUM COMMAND")
-        fo, self._vac_ok = _mini("VACUUM_OK")
+        vac.setSpacing(10)
+        fc, self._vac_cmd = _stat("진공 명령")
+        fo, self._vac_ok = _stat("진공 확인")
         vac.addWidget(fc)
         vac.addWidget(fo)
-        self._vac_btn = QPushButton("VACUUM ON")
+        self._vac_btn = QPushButton("진공 켜기")
+        self._vac_btn.setObjectName("primary")
         self._vac_btn.setCheckable(True)
-        self._vac_btn.setMinimumHeight(46)
+        self._vac_btn.setMinimumHeight(52)
         self._vac_btn.toggled.connect(self.ctrl.set_vacuum)
         vac.addWidget(self._vac_btn, 1)
         lay.addLayout(vac)
@@ -137,17 +160,18 @@ class MainPage(QWidget):
         lay.addWidget(self._vac_warn)
 
         actions = QHBoxLayout()
-        self._btn_reset = QPushButton("Safety Reset")
+        actions.setSpacing(8)
+        self._btn_reset = QPushButton("안전 복귀")
         self._btn_reset.setObjectName("danger")
         self._btn_reset.clicked.connect(self.ctrl.cmd_safety_reset)
-        b_clear = QPushButton("Alarm Clear")
+        b_clear = QPushButton("알람 해제")
         b_clear.clicked.connect(self.ctrl.cmd_alarm_clear)
-        b_count = QPushButton("Count Reset")
+        b_count = QPushButton("횟수 초기화")
         b_count.clicked.connect(self.ctrl.cmd_count_reset)
-        b_zero = QPushButton("Load Zero")
+        b_zero = QPushButton("하중 영점")
         b_zero.clicked.connect(self.ctrl.cmd_load_zero)
         for b in (self._btn_reset, b_clear, b_count, b_zero):
-            b.setMinimumHeight(42)
+            b.setMinimumHeight(44)
             actions.addWidget(b)
         lay.addLayout(actions)
         return frame
@@ -156,21 +180,20 @@ class MainPage(QWidget):
     def update_view(self) -> None:
         c = self.ctrl
         step = c.auto_step()
-        self._step.setText(f"Step {step} / 4" if step else "-")
+        self._step.setText(f"{step} / 4 단계" if step else "-")
         self._stage.setText(_STAGE_KO.get(c.state, c.state.value))
         rem = c.remaining_dwell_s()
-        sub = c.state.value + (f" · 남은 시간 {rem:.1f}초" if rem else "")
-        self._sub.setText(sub)
+        self._sub.setText(f"남은 시간 {rem:.1f}초" if rem else "")
 
         if c.out.valve_down:
-            self._arrow.setText("↓"); self._arrow.setStyleSheet(f"font-size:56px;font-weight:900;color:{theme.GREEN};")
+            self._arrow.setText("↓"); self._arrow.setStyleSheet(f"font-size:64px;font-weight:900;color:{theme.GREEN};")
         elif c.out.valve_up:
-            self._arrow.setText("↑"); self._arrow.setStyleSheet(f"font-size:56px;font-weight:900;color:{theme.BLUE};")
+            self._arrow.setText("↑"); self._arrow.setStyleSheet(f"font-size:64px;font-weight:900;color:{theme.BLUE};")
         else:
-            self._arrow.setText("■"); self._arrow.setStyleSheet(f"font-size:56px;font-weight:900;color:{theme.OFF};")
+            self._arrow.setText("■"); self._arrow.setStyleSheet(f"font-size:64px;font-weight:900;color:{theme.OFF};")
 
-        self._down_dwell.setText(f"{c.settings.down_dwell_ms/1000:.2f} s")
-        self._up_dwell.setText(f"{c.settings.up_dwell_ms/1000:.2f} s")
+        self._down_dwell.setText(f"{c.settings.down_dwell_ms/1000:.2f}초")
+        self._up_dwell.setText(f"{c.settings.up_dwell_ms/1000:.2f}초")
 
         self._load.setText(f"{c.load_kgf:.1f} kgf")
         self._cyc_peak.setText(f"{c.cycle_peak_load_kgf:.1f}")
@@ -179,18 +202,18 @@ class MainPage(QWidget):
 
         pct = int(c.count / c.target_count * 100) if c.target_count else 0
         self._count_lbl.setText(f"반복 횟수 {c.count} / {c.target_count}")
+        self._pct_lbl.setText(f"{min(100, pct)}%")
         self._progress.setValue(min(100, pct))
 
-        status = c.vacuum_status()
-        self._vac_cmd.setText("ON" if c.vacuum_command else "OFF")
+        self._vac_cmd.setText("켜짐" if c.vacuum_command else "꺼짐")
         ok_color = theme.GREEN if c.vacuum_ok else theme.MUTED
-        self._vac_ok.setText("ON" if c.vacuum_ok else "OFF")
-        self._vac_ok.setStyleSheet(f"font-size:17px;font-weight:800;color:{ok_color};")
+        self._vac_ok.setText("정상" if c.vacuum_ok else "꺼짐")
+        self._vac_ok.setStyleSheet(f"font-size:19px;font-weight:800;color:{ok_color};")
         if self._vac_btn.isChecked() != c.vacuum_command:
             self._vac_btn.blockSignals(True)
             self._vac_btn.setChecked(c.vacuum_command)
             self._vac_btn.blockSignals(False)
-        self._vac_btn.setText("VACUUM OFF" if c.vacuum_command else "VACUUM ON")
+        self._vac_btn.setText("진공 끄기" if c.vacuum_command else "진공 켜기")
         warns = ", ".join(sorted(a.value for a in c.vacuum_warnings))
         self._vac_warn.setText(f"⚠ {warns}" if warns else "")
 

@@ -54,8 +54,10 @@ def main() -> int:
     window = MainWindow(cfg, controller, a1, a2, ai, logger,
                         settings_path=SETTINGS_PATH, event_log=events, hub=hub)
 
+    # KIOSK=1 이면 mock 이라도 전체화면(장비/파이 터치스크린용, 트레이·타이틀바 덮음).
+    kiosk = environ.get("KIOSK", "0") == "1"
     debug_win = None
-    if cfg.mock_hardware:
+    if cfg.mock_hardware and not kiosk:
         window.resize(1024, 600)   # 노트북 개발: 창 모드
         window.move(0, 0)
         window.show()
@@ -67,7 +69,13 @@ def main() -> int:
             debug_win.show()
             window.destroyed.connect(debug_win.close)
     else:
-        window.showFullScreen()    # 장비: 키오스크
+        # 장비/키오스크: 전체화면. 일부 Wayland 컴포지터(labwc)에서 fullscreen 이
+        # 출력 크기로 고정되지 않아 창이 화면보다 커지는 문제가 있어, 화면 크기로
+        # 상한을 강제해 하단 네비가 잘리지 않게 한다.
+        scr = app.primaryScreen().geometry()
+        window.setMaximumSize(scr.width(), scr.height())
+        window.resize(scr.width(), scr.height())
+        window.showFullScreen()
 
     try:
         return app.exec()

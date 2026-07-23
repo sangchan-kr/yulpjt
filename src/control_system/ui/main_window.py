@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCursor, QKeyEvent
 from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QHBoxLayout, QLabel, QMainWindow, QPushButton,
-    QStackedWidget, QVBoxLayout, QWidget,
+    QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from ..config import Config
@@ -85,13 +85,13 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(16, 0, 16, 0)
         brand = QLabel("반복 가압 측정기")
         brand.setObjectName("brand")
-        self._mode_badge = QLabel("MANUAL")
-        self._state_badge = QLabel("IDLE")
+        self._mode_badge = QLabel("수동")
+        self._state_badge = QLabel("대기")
         self._clock = QLabel("")
         self._clock.setObjectName("clock")
         gear = QPushButton("⚙")
-        gear.setFixedWidth(48)
-        gear.setStyleSheet("font-size:20px;")
+        gear.setFixedWidth(44)
+        gear.setStyleSheet("font-size:22px; background:transparent; border:none; color:#5b6b7f;")
         gear.clicked.connect(self._open_maintenance)
         lay.addWidget(brand)
         lay.addSpacing(12)
@@ -114,14 +114,15 @@ class MainWindow(QMainWindow):
         self._pills = {}
         for key in ("sol", "cyl", "vacuum", "loadcell", "adam"):
             frame = QFrame()
-            frame.setObjectName("card")
+            frame.setObjectName("pill")
             row = QHBoxLayout(frame)
-            row.setContentsMargins(10, 4, 10, 4)
+            row.setContentsMargins(12, 5, 12, 5)
+            row.setSpacing(8)
             dot = QLabel()
             dot.setFixedSize(12, 12)
             dot.setStyleSheet(theme.dot_qss(theme.OFF))
             text = QLabel("-")
-            text.setStyleSheet("font-weight:800; font-size:12px;")
+            text.setStyleSheet("font-weight:800; font-size:15px; color:#28323f;")
             row.addWidget(dot)
             row.addWidget(text, 1, Qt.AlignmentFlag.AlignCenter)
             self._pills[key] = (dot, text)
@@ -131,6 +132,11 @@ class MainWindow(QMainWindow):
     # ---------------------------------------------------------------- 페이지 스택
     def _build_stack(self, a1, a2, ai) -> QStackedWidget:
         self._stack = QStackedWidget()
+        # 1024x600 고정 화면: 스택이 가장 큰 페이지 기준으로 최소높이를 강제하면
+        # topbar+strip+stack+nav 합이 600 을 넘겨 하단 네비가 잘린다. 세로를 Ignored 로
+        # 두어 스택은 '남는 공간'만 차지하게 하고, 하단 네비가 항상 보이도록 한다.
+        self._stack.setMinimumHeight(0)
+        self._stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         self._main_page = MainPage(self.ctrl, self._trend)
         self._pages = [
             ("운전", self._main_page),
@@ -171,34 +177,62 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- Safety 오버레이
     def _build_safety_overlay(self, parent: QWidget) -> QFrame:
+        self._overlay_suppressed = False
         ov = QFrame(parent)
-        ov.setStyleSheet("background: rgba(5,9,17,190);")
+        ov.setObjectName("safetyOverlay")
+        ov.setStyleSheet("QFrame#safetyOverlay { background: rgba(18,26,38,120); }")
         box = QFrame(ov)
-        box.setStyleSheet(f"background:#35171b; border:2px solid {theme.RED}; border-radius:14px;")
-        box.setFixedWidth(600)
-        v = QVBoxLayout(box)
-        v.setContentsMargins(22, 18, 22, 18)
-        title = QLabel("SAFETY STOP")
-        title.setStyleSheet("color:#ffc4c8; font-size:26px; font-weight:900;")
-        msg = QLabel(
-            "액추에이터 구동 허가가 차단되었습니다. 진공 출력도 강제 OFF 되었습니다.\n\n"
-            "1. 비상정지 버튼을 해제하십시오.\n"
-            "2. Area Sensor 감지영역을 비우십시오.\n"
-            "3. SOL ENABLE 상태가 ON 으로 복귀했는지 확인하십시오.\n"
-            "4. Safety Reset 후 진공은 자동 복원되지 않습니다."
+        box.setObjectName("safetyBox")
+        box.setStyleSheet(
+            f"QFrame#safetyBox {{ background:#ffffff; border:3px solid {theme.RED};"
+            f" border-radius:16px; }}"
         )
-        msg.setStyleSheet("color:#f3d3d6;")
-        msg.setWordWrap(True)
-        btn = QPushButton("SAFETY RESET")
-        btn.setObjectName("danger")
-        btn.setMinimumHeight(46)
-        btn.clicked.connect(self.ctrl.cmd_safety_reset)
+        box.setFixedWidth(760)
+        v = QVBoxLayout(box)
+        v.setContentsMargins(28, 22, 28, 22)
+        v.setSpacing(12)
+        title = QLabel("안전 정지")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet(f"color:{theme.RED}; font-size:34px; font-weight:900;")
+        msg = QLabel("액추에이터 구동이 차단되었으며 진공도 꺼졌습니다.")
+        msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        msg.setStyleSheet("color:#7a2a24; font-size:18px; font-weight:700;")
+        steps = QLabel(
+            "1. 비상정지 버튼을 해제하십시오.\n"
+            "2. 영역센서 감지 범위를 비우십시오.\n"
+            "3. 상단의 ‘구동 허가’를 확인하십시오.\n"
+            "4. 복귀 후 진공은 다시 켜야 합니다."
+        )
+        steps.setStyleSheet(
+            "background:#fdecec; border:1px solid #f2c9c6; border-radius:10px;"
+            "color:#3a2a2a; font-size:17px; font-weight:700; padding:14px 18px; line-height:170%;"
+        )
+        btns = QHBoxLayout()
+        btns.addStretch(1)
+        b_status = QPushButton("상태 확인")
+        b_status.setMinimumSize(150, 52)
+        b_status.clicked.connect(self._safety_status_check)
+        b_reset = QPushButton("안전 복귀")
+        b_reset.setObjectName("danger")
+        b_reset.setMinimumSize(150, 52)
+        b_reset.clicked.connect(self.ctrl.cmd_safety_reset)
+        btns.addWidget(b_status)
+        btns.addSpacing(12)
+        btns.addWidget(b_reset)
+        btns.addStretch(1)
         v.addWidget(title)
         v.addWidget(msg)
-        v.addWidget(btn)
+        v.addWidget(steps)
+        v.addLayout(btns)
         self._overlay_box = box
         ov.hide()
         return ov
+
+    def _safety_status_check(self) -> None:
+        """안전정지 모달에서 '상태 확인' → 오버레이 잠시 숨기고 시스템 상태 페이지로."""
+        self._overlay_suppressed = True
+        self._overlay.hide()
+        self._stack.setCurrentIndex(2)   # 시스템 상태
 
     def _layout_overlay(self) -> None:
         parent = self.centralWidget()
@@ -269,48 +303,50 @@ class MainWindow(QMainWindow):
 
     def _update_topbar(self) -> None:
         c = self.ctrl
-        self._mode_badge.setText("AUTO" if c.mode_auto else "MANUAL")
+        self._mode_badge.setText("자동" if c.mode_auto else "수동")
         self._mode_badge.setStyleSheet(theme.badge_qss("auto" if c.mode_auto else "manual"))
         text, variant = self._state_badge_of(c.state)
         self._state_badge.setText(text)
         self._state_badge.setStyleSheet(theme.badge_qss(variant))
-        self._clock.setText(datetime.datetime.now().strftime("%Y-%m-%d  %H:%M:%S"))
+        self._clock.setText(datetime.datetime.now().strftime("%Y-%m-%d  %H:%M"))
 
     @staticmethod
     def _state_badge_of(state: State):
         if state is State.SAFETY_STOP:
-            return "SAFETY STOP", "stop"
+            return "안전 정지", "stop"
         if state is State.ERROR:
-            return "ERROR", "stop"
+            return "오류", "stop"
         if state in _AUTO_RUNNING:
-            return "AUTO RUNNING", "running"
+            return "자동 운전", "running"
         if state is State.AUTO_COMPLETE:
-            return "AUTO COMPLETE", "running"
+            return "운전 완료", "running"
         if state is State.MANUAL_IDLE:
-            return "MANUAL IDLE", "idle"
-        return "IDLE", "idle"
+            return "수동 대기", "idle"
+        return "대기", "idle"
 
     def _update_strip(self) -> None:
         c = self.ctrl
         self._set_pill("sol", theme.GREEN if c.sol_enable_ok else theme.RED,
-                       "SOL ENABLED" if c.sol_enable_ok else "SOL DISABLED")
+                       "구동 허가" if c.sol_enable_ok else "구동 차단")
         cyl = c.io.di
         from ..hardware.signals import DI1
         if cyl(DI1.CYL_UP_POS) and not cyl(DI1.CYL_DOWN_POS):
-            self._set_pill("cyl", theme.BLUE, "CYL UP")
+            self._set_pill("cyl", theme.BLUE, "실린더 상승")
         elif cyl(DI1.CYL_DOWN_POS) and not cyl(DI1.CYL_UP_POS):
-            self._set_pill("cyl", theme.BLUE, "CYL DOWN")
+            self._set_pill("cyl", theme.BLUE, "실린더 하강")
         else:
-            self._set_pill("cyl", theme.OFF, "CYL UNKNOWN")
+            self._set_pill("cyl", theme.OFF, "실린더 미확인")
         vs = c.vacuum_status()
         vac_color = {"OK": theme.GREEN, "BUILDING": theme.YELLOW,
                      "RESIDUAL": theme.YELLOW, "OFF": theme.OFF}[vs]
-        self._set_pill("vacuum", vac_color, f"VACUUM {vs}")
+        vac_text = {"OK": "진공 정상", "BUILDING": "진공 생성중",
+                    "RESIDUAL": "진공 잔압", "OFF": "진공 꺼짐"}[vs]
+        self._set_pill("vacuum", vac_color, vac_text)
         valid = c.loadcell.current_valid()
         self._set_pill("loadcell", theme.GREEN if valid else theme.RED,
-                       "LOADCELL OK" if valid else "LOADCELL ERROR")
+                       "하중 정상" if valid else "하중 오류")
         self._set_pill("adam", theme.GREEN if c.adam2_connected else theme.RED,
-                       "ADAM CONNECTED" if c.adam2_connected else "ADAM DISCONNECTED")
+                       "통신 정상" if c.adam2_connected else "통신 끊김")
 
     def _set_pill(self, key: str, color: str, text: str) -> None:
         dot, label = self._pills[key]
@@ -318,7 +354,13 @@ class MainWindow(QMainWindow):
         label.setText(text)
 
     def _update_overlay(self) -> None:
-        show = self.ctrl.state is State.SAFETY_STOP
+        stop = self.ctrl.state is State.SAFETY_STOP
+        if not stop:
+            self._overlay_suppressed = False
+            if self._overlay.isVisible():
+                self._overlay.hide()
+            return
+        show = not self._overlay_suppressed
         if show and not self._overlay.isVisible():
             self._overlay.show()
             self._overlay.raise_()

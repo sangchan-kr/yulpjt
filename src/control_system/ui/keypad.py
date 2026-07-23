@@ -13,7 +13,7 @@ class KeypadDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setModal(True)
-        self.setStyleSheet(theme.QSS + "QDialog{background:#0f1828;}")
+        self.setStyleSheet(theme.QSS + "QDialog{background:#ffffff;}")
         self._is_float = is_float
         self._buf = str(value)
         self.result_value = None
@@ -24,8 +24,8 @@ class KeypadDialog(QDialog):
         root.addWidget(self._label)
         self._disp = QLabel(self._buf)
         self._disp.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self._disp.setStyleSheet("font-size:28px; font-weight:900; background:#0e1726;"
-                                 "border:1px solid #3a4b63; border-radius:8px; padding:8px 12px;")
+        self._disp.setStyleSheet("font-size:28px; font-weight:900; background:#f2f5f8; color:#1b2735;"
+                                 "border:1px solid #cfd8e2; border-radius:8px; padding:8px 12px;")
         root.addWidget(self._disp)
 
         grid = QGridLayout()

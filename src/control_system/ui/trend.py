@@ -33,7 +33,14 @@ class TrendWidget(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(self.rect(), QColor("#0e1726"))
+        # v0.4 light: 흰 패널 + 옅은 테두리/그리드
+        p.fillRect(self.rect(), QColor("#ffffff"))
+        p.setPen(QPen(QColor("#e2e8f0"), 1))
+        p.drawRect(0, 0, w - 1, h - 1)
+        p.setPen(QPen(QColor("#eef2f7"), 1))
+        for i in range(1, 4):
+            gy = int(h * i / 4)
+            p.drawLine(0, gy, w, gy)
 
         data = self._trend.samples()
         limit = self._limit_getter() if self._limit_getter else 0
