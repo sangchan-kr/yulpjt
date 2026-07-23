@@ -19,22 +19,23 @@ class LogsPage(QWidget):
         self._tab = 0
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 12, 14, 12)
+        root.setContentsMargins(14, 10, 14, 10); root.setSpacing(8)
         tabs = QHBoxLayout()
         self._group = QButtonGroup(self); self._group.setExclusive(True)
         for i, name in enumerate(("운전 기록", "알람/이벤트", "하중 트렌드")):
-            b = QPushButton(name); b.setObjectName("navBtn"); b.setCheckable(True)
+            b = QPushButton(name); b.setObjectName("tab"); b.setCheckable(True)
             b.clicked.connect(lambda _=False, idx=i: self._set_tab(idx))
             self._group.addButton(b, i)
             tabs.addWidget(b)
         self._group.button(0).setChecked(True)
+        tabs.addStretch(1)
         root.addLayout(tabs)
 
         card = QFrame(); card.setObjectName("card")
         cl = QVBoxLayout(card)
         self._body = QLabel("")
         self._body.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self._body.setStyleSheet("font-family:Consolas,monospace; font-size:13px; line-height:150%;")
+        self._body.setStyleSheet("font-size:15px; color:#28323f; line-height:170%;")
         cl.addWidget(self._body, 1)
         root.addWidget(card, 1)
 

@@ -28,7 +28,7 @@ class HelpPage(QWidget):
         super().__init__()
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 12, 14, 12)
-        title = QLabel("빠른 사용법"); title.setStyleSheet("font-size:20px; font-weight:900;")
+        title = QLabel("빠른 사용법"); title.setObjectName("pageTitle")
         root.addWidget(title)
 
         card = QFrame(); card.setObjectName("card")
@@ -38,7 +38,7 @@ class HelpPage(QWidget):
             num = QLabel(str(i))
             num.setFixedSize(28, 28)
             num.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            num.setStyleSheet("background:#075985; border-radius:14px; font-weight:900;")
+            num.setStyleSheet("background:#2f6fed; color:#ffffff; border-radius:14px; font-weight:900;")
             txt = QLabel(f"<b>{head}</b><br><span style='color:{theme.MUTED}'>{desc}</span>")
             txt.setTextFormat(Qt.TextFormat.RichText)
             row.addWidget(num, 0, Qt.AlignmentFlag.AlignTop)

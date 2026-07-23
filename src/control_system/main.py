@@ -56,26 +56,46 @@ def main() -> int:
 
     # KIOSK=1 이면 mock 이라도 전체화면(장비/파이 터치스크린용, 트레이·타이틀바 덮음).
     kiosk = environ.get("KIOSK", "0") == "1"
-    debug_win = None
-    if cfg.mock_hardware and not kiosk:
-        window.resize(1024, 600)   # 노트북 개발: 창 모드
-        window.move(0, 0)
-        window.show()
-        # mock 디버그 창(별도): DI 주입 + DO 관찰 + 로드셀 슬라이더. DEBUG_IO=0 로 끌 수 있음.
-        if environ.get("DEBUG_IO", "1") == "1":
-            from .ui.debug_window import DebugWindow
-            debug_win = DebugWindow(controller, a1, a2, ai)
-            debug_win.move(1030, 0)
-            debug_win.show()
-            window.destroyed.connect(debug_win.close)
-    else:
-        # 장비/키오스크: 전체화면. 일부 Wayland 컴포지터(labwc)에서 fullscreen 이
-        # 출력 크기로 고정되지 않아 창이 화면보다 커지는 문제가 있어, 화면 크기로
-        # 상한을 강제해 하단 네비가 잘리지 않게 한다.
+
+    def _show_fullscreen(w) -> None:
+        # 일부 Wayland 컴포지터(labwc)에서 fullscreen 이 출력 크기로 고정되지 않아
+        # 창이 화면보다 커지는 문제가 있어, 화면 크기로 상한을 강제한다(네비 잘림 방지).
         scr = app.primaryScreen().geometry()
-        window.setMaximumSize(scr.width(), scr.height())
-        window.resize(scr.width(), scr.height())
-        window.showFullScreen()
+        w.setMaximumSize(scr.width(), scr.height())
+        w.resize(scr.width(), scr.height())
+        w.showFullScreen()
+
+    def show_main() -> None:
+        if cfg.mock_hardware and not kiosk:
+            window.resize(1024, 600)   # 노트북 개발: 창 모드
+            window.move(0, 0)
+            window.show()
+            # mock 디버그 창(별도): DI 주입 + DO 관찰 + 로드셀 슬라이더. DEBUG_IO=0 로 끔.
+            if environ.get("DEBUG_IO", "1") == "1":
+                from .ui.debug_window import DebugWindow
+                dbg = DebugWindow(controller, a1, a2, ai)
+                dbg.move(1030, 0)
+                dbg.show()
+                window.destroyed.connect(dbg.close)
+                window._debug_win = dbg      # GC 방지
+        else:
+            _show_fullscreen(window)
+        if getattr(app, "_boot", None) is not None:
+            app._boot.close()
+            app._boot = None
+
+    # 부팅 화면(BOOT=0 으로 끔). 완료 후 메인 창 표시.
+    app._boot = None
+    if environ.get("BOOT", "1") == "1":
+        from .ui.boot_screen import BootScreen
+        boot = BootScreen(on_done=show_main)
+        app._boot = boot
+        if cfg.mock_hardware and not kiosk:
+            boot.resize(1024, 600); boot.show()
+        else:
+            _show_fullscreen(boot)
+    else:
+        show_main()
 
     try:
         return app.exec()
