@@ -252,6 +252,48 @@ def test_auto_complete_to_manual_on_selector():
     assert ctrl.state is State.MANUAL_IDLE
 
 
+def test_restart_after_safety_recovery_resets_count():
+    # 완료(카운트=목표) → 안전정지 → 복귀(AUTO_IDLE, 카운트 유지) → Auto Start 하면
+    # 새 배치로 리셋되어 목표에서 멈춰야 한다 (목표+1 로 넘어가지 않음).
+    ctrl, a1, a2, ai, clk = _build(target_count=3, down_dwell_ms=20, up_dwell_ms=20)
+    _di(a1, DI1.SOL_ENABLE_OK, True); _di(a1, DI1.MODE_AUTO, True); ctrl.scan()
+
+    def start_and_finish():
+        _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+        for _ in range(500):
+            clk.advance(0.02); ctrl.scan(); _plant(ctrl, a1)
+            if ctrl.state in (State.AUTO_COMPLETE, State.ERROR):
+                return
+
+    start_and_finish()
+    assert ctrl.state is State.AUTO_COMPLETE and ctrl.count == 3
+    _di(a1, DI1.SOL_ENABLE_OK, False); ctrl.scan()
+    assert ctrl.state is State.SAFETY_STOP
+    _di(a1, DI1.SOL_ENABLE_OK, True); ctrl.cmd_safety_reset(); ctrl.scan()
+    assert ctrl.state is State.AUTO_IDLE and ctrl.count == 3
+    start_and_finish()
+    assert ctrl.state is State.AUTO_COMPLETE
+    assert ctrl.count == 3            # 6 이 아니라 3
+
+
+def test_load_over_limit_during_up_phase():
+    # 하중 상한 초과는 하강뿐 아니라 자동 어느 단계(상승 유지 등)에서도 즉시 폴트.
+    ctrl, a1, a2, ai, clk = _build(target_count=3, load_limit_kgf=100.0,
+                                   down_dwell_ms=20, up_dwell_ms=300)
+    _di(a1, DI1.SOL_ENABLE_OK, True); _di(a1, DI1.MODE_AUTO, True); ctrl.scan()
+    _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+    injected = False
+    for _ in range(500):
+        clk.advance(0.02); ctrl.scan(); _plant(ctrl, a1)
+        if ctrl.state is State.AUTO_DWELL_UP and not injected:
+            ai.set_mock_load_kgf(0, 500.0, ctrl.cfg.loadcell_full_scale_kgf); injected = True
+        if ctrl.state in (State.ERROR, State.AUTO_COMPLETE):
+            break
+    assert injected
+    assert ctrl.state is State.ERROR
+    assert Alarm.LOAD_OVER_LIMIT in ctrl.alarms
+
+
 def test_auto_down_timeout():
     ctrl, a1, a2, ai, clk = _build(down_timeout_ms=200)
     _di(a1, DI1.SOL_ENABLE_OK, True)

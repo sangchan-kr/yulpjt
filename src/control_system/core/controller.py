@@ -239,12 +239,22 @@ class Controller:
         self.out.valve_up = False
 
         s = self.state
+        # 자동 운전 중에는 어느 단계든 하중 상한 초과 시 즉시 폴트(과가압 보호).
+        if self._auto_running() and self.load_kgf > self.settings.load_limit_kgf:
+            self._fault(Alarm.LOAD_OVER_LIMIT)
+            return
         if s in (State.SAFETY_STOP, State.ERROR, State.BOOT):
             pass
         elif s is State.MANUAL_IDLE:
             self._run_manual()
         elif s is State.AUTO_IDLE:
             if self._rising(DI1.AUTO_START_PB):
+                # 이미 목표 횟수를 채운 상태에서 다시 시작 → 새 배치로 카운트 리셋.
+                # (중간 정지 후 이어하기는 count < target 이라 리셋하지 않는다.)
+                if self.count >= self.target_count:
+                    self.count = 0
+                    self.run_peak_load_kgf = 0.0
+                    self.cycle_peak_load_kgf = 0.0
                 self.state = State.AUTO_PRECHECK
         elif s is State.AUTO_PRECHECK:
             self._run_precheck()
@@ -293,18 +303,13 @@ class Controller:
 
     def _run_move_down(self) -> None:
         self.out.valve_down = True
-        if self.load_kgf > self.settings.load_limit_kgf:
-            self._fault(Alarm.LOAD_OVER_LIMIT)
-            return
+        # 하중 상한 초과는 _run_state 상단에서 자동 전 단계 공통으로 처리한다.
         if self.io.di(DI1.CYL_DOWN_POS):
             self._start_dwell(State.AUTO_DWELL_DOWN, self.settings.down_dwell_ms)
         elif self._deadline_passed():
             self._fault(Alarm.DOWN_TIMEOUT)
 
     def _run_dwell_down(self) -> None:
-        if self.load_kgf > self.settings.load_limit_kgf:
-            self._fault(Alarm.LOAD_OVER_LIMIT)
-            return
         if self._now >= self._t_dwell_end:
             self._start_move(State.AUTO_MOVE_UP, self.settings.up_timeout_ms)
 
