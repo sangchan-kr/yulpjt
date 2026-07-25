@@ -70,14 +70,15 @@ def main() -> int:
             window.resize(1024, 600)   # 노트북 개발: 창 모드
             window.move(0, 0)
             window.show()
-            # mock 디버그 창(별도): DI 주입 + DO 관찰 + 로드셀 슬라이더. DEBUG_IO=0 로 끔.
+            # mock 제어함 시뮬레이터(별도 창): 외부 스위치 클릭 + 센서/인터록 시뮬 +
+            # 출력 램프. DEBUG_IO=0 으로 끔. (원 I/O 디버그 창은 debug_window.py 로 유지)
             if environ.get("DEBUG_IO", "1") == "1":
-                from .ui.debug_window import DebugWindow
-                dbg = DebugWindow(controller, a1, a2, ai)
-                dbg.move(1030, 0)
-                dbg.show()
-                window.destroyed.connect(dbg.close)
-                window._debug_win = dbg      # GC 방지
+                from .ui.control_panel import ControlPanel
+                panel = ControlPanel(controller, a1, a2, ai)
+                panel.move(1030, 0)
+                panel.show()
+                window.destroyed.connect(panel.close)
+                window._panel = panel      # GC 방지
         else:
             _show_fullscreen(window)
         if getattr(app, "_boot", None) is not None:
