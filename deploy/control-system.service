@@ -1,5 +1,5 @@
 [Unit]
-Description=Industrial Control HMI
+Description=Industrial Control HMI (kiosk)
 
 [Service]
 Type=simple
@@ -7,6 +7,12 @@ WorkingDirectory=/home/yul/control-system
 Environment=QT_QPA_PLATFORM=wayland
 Environment=WAYLAND_DISPLAY=wayland-0
 Environment=PYTHONUNBUFFERED=1
+# 키오스크: 전체화면 + 부팅화면, 파이 화면엔 디버그 창 미표시.
+Environment=KIOSK=1
+Environment=BOOT=1
+Environment=DEBUG_IO=0
+# 실 하드웨어(ADAM/로드셀) 연결 후에는 MOCK_HW=0 으로 변경.
+Environment=MOCK_HW=1
 ExecStart=/home/yul/control-system/.venv/bin/python -m control_system
 Restart=on-failure
 RestartSec=3
