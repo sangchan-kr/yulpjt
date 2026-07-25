@@ -226,7 +226,7 @@ class Controller:
             self.cycle_peak_load_kgf = 0.0
         self._cmd_count_reset = False
 
-        if self.state is State.AUTO_IDLE and not self.mode_auto:
+        if self.state in (State.AUTO_IDLE, State.AUTO_COMPLETE) and not self.mode_auto:
             self.state = State.MANUAL_IDLE
         elif self.state is State.MANUAL_IDLE and self.mode_auto:
             self.state = State.AUTO_IDLE
@@ -258,6 +258,13 @@ class Controller:
             self._run_dwell_up()
         elif s is State.AUTO_COUNT_UPDATE:
             self._run_count_update()
+        elif s is State.AUTO_COMPLETE:
+            # 완료 후 Auto Start 재입력 → 카운트 리셋하고 정해진 횟수를 다시 반복.
+            if self._rising(DI1.AUTO_START_PB):
+                self.count = 0
+                self.run_peak_load_kgf = 0.0
+                self.cycle_peak_load_kgf = 0.0
+                self.state = State.AUTO_PRECHECK
 
         if s.name.startswith("AUTO_") and s not in (State.AUTO_IDLE, State.AUTO_COMPLETE):
             if self._rising(DI1.AUTO_STOP_PB):

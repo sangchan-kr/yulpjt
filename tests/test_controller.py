@@ -207,6 +207,51 @@ def test_auto_full_cycle_reaches_complete():
     assert not ctrl.alarms
 
 
+def test_auto_restart_after_complete():
+    # 완료(AUTO_COMPLETE) 상태에서 Auto Start 재입력 → 카운트 리셋 + 정해진 횟수 재반복.
+    ctrl, a1, a2, ai, clk = _build(target_count=2)
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, True)
+    ctrl.scan()
+
+    def run_to_complete():
+        for _ in range(400):
+            clk.advance(0.03); ctrl.scan(); _plant(ctrl, a1)
+            if ctrl.state in (State.AUTO_COMPLETE, State.ERROR):
+                return
+
+    # 1회차
+    _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+    run_to_complete()
+    assert ctrl.state is State.AUTO_COMPLETE and ctrl.count == 2
+
+    # 완료 상태에서 재입력 → 즉시 카운트 0, 재시작
+    _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+    assert ctrl.state is State.AUTO_PRECHECK
+    assert ctrl.count == 0
+
+    # 2회차도 완주
+    run_to_complete()
+    assert ctrl.state is State.AUTO_COMPLETE and ctrl.count == 2
+
+
+def test_auto_complete_to_manual_on_selector():
+    # 완료 상태에서 셀렉터를 MANUAL 로 → 수동 대기로 전환.
+    ctrl, a1, a2, ai, clk = _build(target_count=1, down_dwell_ms=20, up_dwell_ms=20)
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, True)
+    ctrl.scan()
+    _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+    for _ in range(400):
+        clk.advance(0.03); ctrl.scan(); _plant(ctrl, a1)
+        if ctrl.state in (State.AUTO_COMPLETE, State.ERROR):
+            break
+    assert ctrl.state is State.AUTO_COMPLETE
+    _di(a1, DI1.MODE_AUTO, False)
+    ctrl.scan()
+    assert ctrl.state is State.MANUAL_IDLE
+
+
 def test_auto_down_timeout():
     ctrl, a1, a2, ai, clk = _build(down_timeout_ms=200)
     _di(a1, DI1.SOL_ENABLE_OK, True)
