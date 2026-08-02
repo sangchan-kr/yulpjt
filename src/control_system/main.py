@@ -12,7 +12,7 @@ from .hardware.adam4017 import Adam4017
 from .hardware.adam4055 import Adam4055
 from .hardware.loadcell import LoadCell
 from .hardware.modbus_hub import ModbusHub
-from .hardware.signals import IO, DI2
+from .hardware.signals import IO, DI1, DI2
 from .ui.logging_csv import CsvLogger, EventLog
 from .ui.main_window import MainWindow
 
@@ -73,7 +73,11 @@ def build_io_stack(cfg: Config):
     a1 = Adam4055(hub, cfg.node_adam1, mock=cfg.mock_hardware, name="#1")
     a2 = Adam4055(hub, cfg.node_adam2, mock=cfg.mock_hardware, name="#2")
     ai = Adam4017(hub, cfg.node_adam4017, mock=cfg.mock_hardware)
-    invert = {DI2.VACUUM_OK} if cfg.invert_vacuum_ok else frozenset()
+    invert = set()
+    if cfg.invert_vacuum_ok:
+        invert.add(DI2.VACUUM_OK)
+    if cfg.invert_mode_auto:
+        invert.add(DI1.MODE_AUTO)
     io = IO(a1, a2, ai, input_invert=invert)
     loadcell = LoadCell(
         ai, cfg.loadcell_ai_channel, cfg.loadcell_full_scale_kgf, cfg.loadcell_calibration_path

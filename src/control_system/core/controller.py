@@ -44,6 +44,9 @@ class Controller:
         self.cycle_peak_load_kgf = 0.0             # 현재 사이클 최대
         self.run_peak_load_kgf = 0.0               # 전체 운전 최대
 
+        # 통신 재접속(USB 재열거) 발생 횟수 — 노이즈 진단용(임시 표시)
+        self.comm_error_count = 0
+
         # 입력 캐시
         self.sol_enable_ok = False
         self.mode_auto = False
@@ -189,6 +192,7 @@ class Controller:
         진입 시점에만 traceback 로깅(스캔 10Hz 스팸 방지). 다음 스캔에서 읽기 성공하면 알람 자동 해제.
         """
         if Alarm.ADAM_COMM_ERROR not in self.alarms:   # 오류 진입(엣지)에서만 1회 기록
+            self.comm_error_count += 1
             logging.getLogger("ctrl").exception("통신 오류 진입: %s", where)
         self.alarms.add(Alarm.ADAM_COMM_ERROR)
         self.out.actuators_off()

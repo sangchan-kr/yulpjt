@@ -88,6 +88,11 @@ class MainWindow(QMainWindow):
         brand.setObjectName("brand")
         self._mode_badge = QLabel("수동")
         self._state_badge = QLabel("대기")
+        # [임시/테스트] 통신 재접속(USB 재열거) 횟수 — 노이즈 진단용
+        self._comm_badge = QLabel("재접속 0")
+        self._comm_badge.setStyleSheet(
+            "background:#fdeeee; color:#c0392b; font-weight:800; font-size:14px;"
+            "padding:3px 10px; border-radius:11px;")
         self._clock = QLabel("")
         self._clock.setObjectName("clock")
         gear = QPushButton("⚙")
@@ -98,6 +103,8 @@ class MainWindow(QMainWindow):
         lay.addSpacing(12)
         lay.addWidget(self._mode_badge)
         lay.addWidget(self._state_badge)
+        lay.addSpacing(10)
+        lay.addWidget(self._comm_badge)
         lay.addStretch(1)
         lay.addWidget(self._clock)
         lay.addSpacing(10)
@@ -317,6 +324,7 @@ class MainWindow(QMainWindow):
         text, variant = self._state_badge_of(c.state)
         self._state_badge.setText(text)
         self._state_badge.setStyleSheet(theme.badge_qss(variant))
+        self._comm_badge.setText(f"재접속 {c.comm_error_count}")   # [임시] 재열거 횟수
         self._clock.setText(datetime.datetime.now().strftime("%Y-%m-%d  %H:%M"))
 
     @staticmethod

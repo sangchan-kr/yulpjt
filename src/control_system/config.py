@@ -105,6 +105,7 @@ class Config:
 
     # --- 입력 논리 반전 (NPN 등, v1.12 §7.2) ------------------------------
     invert_vacuum_ok: bool = False      # ZK2A NPN 스위치 결선 검증 후 결정 (Phase D)
+    invert_mode_auto: bool = True       # AUTO/MANUAL 셀렉터 결선 반대 → MODE_AUTO 반전(현장 확인)
 
     # --- 유지보수 (관리자) -------------------------------------------------
     maintenance_passcode: str = "1234"  # 유지보수 페이지 진입 암호
