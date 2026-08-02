@@ -29,6 +29,33 @@ def _build(mock_invert_vacuum=False):
     return cfg, a1, a2, ai, io
 
 
+def test_hub_reconnects_on_usb_dropout():
+    """USB 재열거로 fd 가 죽으면(OSError) 포트를 재오픈하고 재시도해 복구한다."""
+    from control_system.hardware.modbus_hub import AdamSerialBus
+
+    class _Dead:                      # 죽은 포트: 접근하면 OSError
+        is_open = True
+        def reset_input_buffer(self): raise OSError("device disconnected")
+        def close(self): pass
+
+    class _Live:                      # 재열거 후 정상 포트: "!01000000\r" 응답
+        is_open = True
+        def __init__(self): self._b = b"!01000000\r"; self._i = 0
+        def reset_input_buffer(self): pass
+        def write(self, b): pass
+        def read(self, n):
+            if self._i < len(self._b):
+                c = self._b[self._i:self._i + 1]; self._i += 1; return c
+            return b""
+        def close(self): pass
+
+    bus = AdamSerialBus("/dev/serial/by-id/usb-CP210x-if00-port0", 9600, retries=1)
+    bus._ser = _Dead()
+    bus._resolve_port = lambda: bus._port          # 실제 파일시스템 접근 회피
+    bus.connect = lambda: (setattr(bus, "_ser", _Live()) or True)
+    assert bus.command("$016") == "!01000000"      # 첫 시도 실패→재오픈→성공
+
+
 def test_loadcell_conversion():
     cfg, a1, a2, ai, io = _build()
     tmp = os.path.join(tempfile.gettempdir(), "cal_test.json")

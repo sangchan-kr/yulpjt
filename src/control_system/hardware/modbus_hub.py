@@ -60,21 +60,64 @@ class AdamSerialBus:
         if not self.mock and self._ser is not None:
             self._ser.close()
 
+    def _resolve_port(self) -> str:
+        """USB 재열거로 ttyUSB 번호가 바뀌어도 CP210x by-id(고정 심링크)로 다시 찾는다.
+
+        socket:// URL 이나 명시 경로가 살아있으면 그대로. 없으면 by-id → ttyUSB* 순.
+        """
+        if "://" in self._port:
+            return self._port
+        import glob
+        import os
+        if os.path.exists(self._port) and "by-id" in self._port:
+            return self._port                       # 안정적 by-id 경로면 유지
+        byid = sorted(glob.glob("/dev/serial/by-id/*CP210*")) \
+            or sorted(glob.glob("/dev/serial/by-id/*ADAM*"))
+        if byid:
+            return byid[0]
+        if os.path.exists(self._port):
+            return self._port
+        tty = sorted(glob.glob("/dev/ttyUSB*"))
+        return tty[0] if tty else self._port
+
+    def _reopen(self) -> None:
+        """죽은 fd 를 닫고 포트를 재탐색해 다시 연다(USB 재열거 복구)."""
+        try:
+            if self._ser is not None:
+                self._ser.close()
+        except Exception:
+            pass
+        self._ser = None
+        self._port = self._resolve_port()
+        self.connect()
+
     # --- ASCII 명령 전송 --------------------------------------------------
     def command(self, cmd: str, *, want_reply: bool = True) -> str:
         """ADAM ASCII 명령을 보내고 응답(CR 제거)을 돌려준다.
 
-        want_reply=True 인데 응답이 없으면 retries 만큼 재시도 후 AdamCommError.
+        시리얼 오류(USB 재열거 등)면 포트를 재오픈하고, want_reply 인데 응답이 없으면
+        retries 만큼 재시도한다. 모두 실패하면 AdamCommError — 단 재오픈은 시도했으므로
+        다음 스캔에서 자동 복구된다.
         """
-        if self._ser is None:
-            raise AdamCommError("serial not connected")
+        last = "no response"
         for _ in range(self.retries + 1):
-            self._ser.reset_input_buffer()
-            self._ser.write((cmd + "\r").encode("ascii"))
-            resp = self._read_until_cr()
-            if not want_reply or resp:
-                return resp
-        raise AdamCommError(f"no response to {cmd!r}")
+            try:
+                if self._ser is None or not self._ser.is_open:
+                    self._reopen()
+                self._ser.reset_input_buffer()
+                self._ser.write((cmd + "\r").encode("ascii"))
+                resp = self._read_until_cr()
+                if not want_reply or resp:
+                    return resp
+                last = f"no response to {cmd!r}"
+            except OSError as e:            # SerialException 포함(USB 끊김/재열거)
+                last = str(e)
+                try:
+                    self._reopen()          # 죽은 포트 재오픈 시도 후 재시도
+                except Exception as e2:
+                    last = f"{e} / reopen 실패: {e2}"
+                    self._ser = None        # 다음 시도에서 다시 연결 시도
+        raise AdamCommError(f"command 실패 {cmd!r}: {last}")
 
     def _read_until_cr(self) -> str:
         buf = bytearray()
