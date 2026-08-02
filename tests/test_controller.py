@@ -207,6 +207,41 @@ def test_manual_stops_at_position_sensor():
     assert not ctrl.out.valve_down
 
 
+def test_buzzer_sounds_until_safety_reset():
+    """SAFETY_STOP 부저는 sol 복귀만으로 꺼지지 않고, 안전 복귀를 눌러야 멈춘다."""
+    ctrl, a1, a2, ai, clk = _build()
+    _di(a1, DI1.MODE_AUTO, False)
+    _di(a1, DI1.SOL_ENABLE_OK, False)
+    ctrl.scan()                                  # t=0, fast 위상
+    assert ctrl.state is State.SAFETY_STOP
+    assert ctrl.out.buzzer is True               # 부저 ON
+    _di(a1, DI1.SOL_ENABLE_OK, True)             # 복귀 조건 충족(그래도 SAFETY_STOP 유지)
+    ctrl.scan()
+    assert ctrl.state is State.SAFETY_STOP
+    assert ctrl.out.buzzer is True               # 아직 안전 복귀 전 → 부저 계속
+    ctrl.cmd_safety_reset()
+    ctrl.scan()
+    assert ctrl.state is State.MANUAL_IDLE
+    assert ctrl.out.buzzer is False              # 안전 복귀 후 부저 OFF
+
+
+def test_buzzer_mute_and_auto_rearm():
+    """부저 정지 버튼 → 이번 이벤트 음소거. 알람 해소되면 자동 해제(다음 이벤트 재알람)."""
+    ctrl, a1, a2, ai, clk = _build()
+    _di(a1, DI1.MODE_AUTO, False)
+    _di(a1, DI1.SOL_ENABLE_OK, False)
+    ctrl.scan()
+    assert ctrl.out.buzzer is True
+    ctrl.cmd_buzzer_mute(); ctrl.scan()
+    assert ctrl.out.buzzer is False              # 음소거
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    ctrl.cmd_safety_reset(); ctrl.scan()          # 복귀 → 알람 해소 → 음소거 자동 해제
+    assert ctrl.state is State.MANUAL_IDLE
+    _di(a1, DI1.SOL_ENABLE_OK, False)
+    ctrl.scan()                                   # 새 안전정지
+    assert ctrl.out.buzzer is True               # 다시 울림
+
+
 def test_manual_blocked_when_sol_off():
     ctrl, a1, a2, ai, clk = _build()
     _di(a1, DI1.SOL_ENABLE_OK, False)

@@ -46,6 +46,7 @@ class Controller:
 
         # 통신 재접속(USB 재열거) 발생 횟수 — 노이즈 진단용(임시 표시)
         self.comm_error_count = 0
+        self._buzzer_muted = False              # 부저 임시 음소거(알람 해소 시 자동 해제)
 
         # 입력 캐시
         self.sol_enable_ok = False
@@ -87,6 +88,10 @@ class Controller:
     # ================================================================= 명령 (HMI)
     def cmd_safety_reset(self) -> None:
         self._cmd_safety_reset = True
+
+    def cmd_buzzer_mute(self) -> None:
+        """부저 임시 음소거. 현재 알람이 해소되면 자동 해제(다음 이벤트에 다시 울림)."""
+        self._buzzer_muted = True
 
     def cmd_alarm_clear(self) -> None:
         self._cmd_alarm_clear = True
@@ -435,12 +440,14 @@ class Controller:
         fast = int(self._now * 6) % 2 == 0
 
         s = self.state
+        # 알람/안전정지가 해소되면 음소거를 자동 해제(다음 이벤트엔 다시 울리게).
+        if not (s in (State.SAFETY_STOP, State.ERROR) or self.alarms):
+            self._buzzer_muted = False
         if s is State.SAFETY_STOP:
-            if self.sol_enable_ok:              # 복귀 조건 충족 → HMI Safety Reset 대기
-                o.lamp_auto_stop = slow
-            else:
-                o.lamp_auto_stop = fast
-                o.buzzer = fast                 # intermittent ON
+            # 안전 복귀(Safety Reset)를 누를 때까지 부저를 계속 울린다. sol_enable_ok 가
+            # 돌아와도 SAFETY_STOP 상태가 유지되는 동안(=복귀 전)엔 부저를 끄지 않는다.
+            o.buzzer = fast                     # intermittent, 복귀 시 상태 전환으로 자동 OFF
+            o.lamp_auto_stop = slow if self.sol_enable_ok else fast
         elif s is State.ERROR or self.alarms:   # 블로킹 알람 (진공 경고 무관)
             o.lamp_auto_stop = fast
             o.buzzer = fast
@@ -460,6 +467,9 @@ class Controller:
                 o.lamp_manual_up = True         # 상승/하강 가능
                 o.lamp_manual_down = True
         # BOOT 등 그 외 상태: 전부 OFF
+
+        if self._buzzer_muted:                  # 부저 정지 버튼 눌림 → 이번 이벤트 음소거
+            o.buzzer = False
 
     # ----------------------------------------------------------------- 출력 반영
     def _stage_and_flush(self) -> None:

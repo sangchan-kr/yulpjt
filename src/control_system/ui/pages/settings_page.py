@@ -7,7 +7,8 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
+    QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
+    QWidget,
 )
 
 from ...config import RuntimeSettings
@@ -48,6 +49,7 @@ class SettingsPage(QWidget):
         self.cfg = cfg
         self._pending = dict(self._snapshot())
         self._value_labels: dict[str, QLabel] = {}
+        self._bool_boxes: dict[str, QCheckBox] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 10, 14, 10)
@@ -90,6 +92,16 @@ class SettingsPage(QWidget):
         for row, (attr, label, unit, kind, _m) in enumerate(fields):
             lbl = QLabel(label)
             grid.addWidget(lbl, row, 0)
+            if kind == "bool":
+                cb = QCheckBox("사용")
+                cb.setStyleSheet(
+                    "QCheckBox{font-size:14px; font-weight:700; color:#1b2735;}"
+                    "QCheckBox::indicator{width:24px; height:24px;}"
+                )
+                cb.toggled.connect(lambda on, a=attr: self._set_bool(a, on))
+                self._bool_boxes[attr] = cb
+                grid.addWidget(cb, row, 1)
+                continue
             box = QLabel("-")
             box.setStyleSheet(_INPUT_QSS)
             box.setMinimumWidth(150)
@@ -125,6 +137,17 @@ class SettingsPage(QWidget):
     def _refresh_labels(self) -> None:
         for attr, box in self._value_labels.items():
             box.setText(self._fmt(attr, self._pending[attr]))
+        for attr, cb in self._bool_boxes.items():
+            cb.blockSignals(True)
+            cb.setChecked(bool(self._pending[attr]))
+            cb.blockSignals(False)
+
+    def _set_bool(self, attr: str, on: bool) -> None:
+        if not self._is_idle():                 # 대기 상태에서만 변경 — 아니면 되돌림
+            cb = self._bool_boxes[attr]
+            cb.blockSignals(True); cb.setChecked(bool(self._pending[attr])); cb.blockSignals(False)
+            return
+        self._pending[attr] = on
 
     def _edit(self, attr: str, label: str, kind: str) -> None:
         if not self._is_idle():
