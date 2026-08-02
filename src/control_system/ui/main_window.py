@@ -273,7 +273,11 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- 주기 갱신
     def _tick(self) -> None:
-        self.ctrl.scan()
+        # 통신 글리치(노이즈)로 개별 단계가 예외를 던져도 UI 타이머가 멈추지 않게 방어.
+        try:
+            self.ctrl.scan()
+        except Exception:
+            pass
         self._trend.add(self.ctrl.load_kgf)
         if self._maint_deadline and time.monotonic() > self._maint_deadline:
             self._stack.setCurrentIndex(0)      # 서비스 타임아웃 → 운전 화면
@@ -282,7 +286,10 @@ class MainWindow(QMainWindow):
         self._update_strip()
         page = self._stack.currentWidget()
         if hasattr(page, "update_view"):
-            page.update_view()
+            try:
+                page.update_view()              # 페이지의 직접 I/O 읽기가 실패해도 계속
+            except Exception:
+                pass
         self._maybe_log()
         self._update_overlay()
 

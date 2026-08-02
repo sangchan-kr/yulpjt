@@ -160,7 +160,12 @@ class Controller:
     # ================================================================= 스캔
     def scan(self) -> None:
         self._now = self._clock()
-        self.io.refresh_inputs()
+        try:
+            self.io.refresh_inputs()
+        except Exception:                       # 통신 오류(AdamCommError 등) — 크래시 방지
+            self._flag_comm_error()
+            return
+        self.alarms.discard(Alarm.ADAM_COMM_ERROR)   # 읽기 성공 → 통신 알람 자동 해제
         self._read_inputs()
         self._handle_global()
         self._run_state()
@@ -172,7 +177,16 @@ class Controller:
         self.alarms.update(blocking)
         self.vacuum_warnings.update(warnings)
 
-        self._stage_and_flush()
+        try:
+            self._stage_and_flush()
+        except Exception:                       # 출력 쓰기 통신 오류
+            self._flag_comm_error()
+
+    def _flag_comm_error(self) -> None:
+        """통신 오류 시: 블로킹 알람 + 액추에이터/진공 명령 OFF. 크래시 없이 다음 스캔에서 복구 시도."""
+        self.alarms.add(Alarm.ADAM_COMM_ERROR)
+        self.out.actuators_off()
+        self.vacuum_command = False
 
     # ----------------------------------------------------------------- 입력
     def _read_inputs(self) -> None:
