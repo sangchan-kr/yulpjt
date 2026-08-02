@@ -66,20 +66,27 @@ class MainPage(QWidget):
     # ---------------------------------------------------------------- 좌: 현재 동작
     def _process_card(self) -> QFrame:
         frame, lay, head = _card("현재 동작")
-        self._step = QLabel("-")
-        self._step.setObjectName("mini")
+        # 우상단: 반복 횟수(크게)
+        cap = QLabel("반복 횟수")
+        cap.setObjectName("mini")
+        cap.setAlignment(Qt.AlignmentFlag.AlignBottom)
+        self._count_big = QLabel("0 / 0")
+        self._count_big.setStyleSheet(f"font-size:30px; font-weight:900; color:{theme.TITLE};")
         head_row = QHBoxLayout()
         head_row.addWidget(head)
         head_row.addStretch(1)
-        head_row.addWidget(self._step)
+        head_row.addWidget(cap)
+        head_row.addSpacing(8)
+        head_row.addWidget(self._count_big)
         lay.takeAt(0)
         lay.insertLayout(0, head_row)
 
         self._stage = QLabel("-")
         self._stage.setStyleSheet(f"font-size:34px; font-weight:900; color:{theme.TITLE};")
         lay.addWidget(self._stage)
-        self._sub = QLabel("-")
-        self._sub.setObjectName("mini")
+        # dwell 남은시간(초) — 크게 표시
+        self._sub = QLabel("")
+        self._sub.setStyleSheet(f"font-size:19px; font-weight:800; color:{theme.MUTED};")
         lay.addWidget(self._sub)
 
         self._arrow = QLabel("■")
@@ -127,11 +134,11 @@ class MainPage(QWidget):
         lay.addWidget(self._trend_w)
 
         cnt_row = QHBoxLayout()
-        self._count_lbl = QLabel("반복 횟수 0 / 0")
-        self._count_lbl.setStyleSheet("font-weight:800;")
+        prog_cap = QLabel("진행률")
+        prog_cap.setObjectName("mini")
         self._pct_lbl = QLabel("0%")
         self._pct_lbl.setStyleSheet(f"font-weight:800; color:{theme.MUTED};")
-        cnt_row.addWidget(self._count_lbl)
+        cnt_row.addWidget(prog_cap)
         cnt_row.addStretch(1)
         cnt_row.addWidget(self._pct_lbl)
         lay.addLayout(cnt_row)
@@ -180,10 +187,14 @@ class MainPage(QWidget):
     def update_view(self) -> None:
         c = self.ctrl
         step = c.auto_step()
-        self._step.setText(f"{step} / 4 단계" if step else "-")
         self._stage.setText(_STAGE_KO.get(c.state, c.state.value))
         rem = c.remaining_dwell_s()
-        self._sub.setText(f"남은 시간 {rem:.1f}초" if rem else "")
+        parts = []
+        if step:
+            parts.append(f"{step}/4 단계")
+        if rem:
+            parts.append(f"남은 시간 {rem:.1f}초")
+        self._sub.setText("     ·     ".join(parts))
 
         if c.out.valve_down:
             self._arrow.setText("↓"); self._arrow.setStyleSheet(f"font-size:64px;font-weight:900;color:{theme.GREEN};")
@@ -201,7 +212,7 @@ class MainPage(QWidget):
         self._limit.setText(f"{c.settings.load_limit_kgf:.1f}")
 
         pct = int(c.count / c.target_count * 100) if c.target_count else 0
-        self._count_lbl.setText(f"반복 횟수 {c.count} / {c.target_count}")
+        self._count_big.setText(f"{c.count} / {c.target_count}")
         self._pct_lbl.setText(f"{min(100, pct)}%")
         self._progress.setValue(min(100, pct))
 
