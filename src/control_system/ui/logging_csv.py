@@ -42,5 +42,7 @@ class EventLog:
         if len(self._items) > self.maxlen:
             self._items = self._items[-self.maxlen:]
 
-    def recent(self, n: int = 30) -> list[tuple[str, str, str]]:
-        return list(reversed(self._items[-n:]))
+    def recent(self, n: int = 30, codes=None) -> list[tuple[str, str, str]]:
+        """최근 항목(최신순). codes 를 주면 해당 code 만 필터링 후 최근 n개."""
+        items = self._items if codes is None else [x for x in self._items if x[1] in codes]
+        return list(reversed(items[-n:]))
