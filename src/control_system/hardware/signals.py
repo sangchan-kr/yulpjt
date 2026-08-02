@@ -107,6 +107,15 @@ class IO:
             raise TypeError(f"AI 신호가 아님: {sig!r}")
         return self._ma[int(sig)]
 
+    # --- 캐시 스냅샷 (추가 폴링 없이 상태표시/디버그용) --------------------
+    def di_snapshot(self, module: int) -> list[bool]:
+        """마지막 스캔에서 읽은 DI(반전 미적용, 하드웨어 원 비트). module: 1 또는 2."""
+        return list(self._di1 if module == 1 else self._di2)
+
+    def ma_snapshot(self) -> list[float]:
+        """마지막 스캔에서 읽은 8채널 전류(mA) 캐시."""
+        return list(self._ma)
+
     # --- 출력 -------------------------------------------------------------
     def set(self, sig, value: bool) -> None:
         if isinstance(sig, DO1):

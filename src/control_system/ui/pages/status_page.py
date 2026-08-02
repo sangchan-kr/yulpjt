@@ -3,6 +3,7 @@
 좌: 제어기/통신/프로세스 요약. 우: 입출력(탭 전환, 정렬 그리드) + 진공 출력 허가 상세.
 """
 
+import logging
 import shutil
 import time
 
@@ -149,20 +150,27 @@ class StatusPage(QWidget):
             f"　실제 : {'켜짐' if c.out.vacuum_on else '꺼짐'}　　"
             f"사유 : {reason or '-'}"
         )
-        self._refresh_io()
+        # I/O 그리드는 캐시 기반이라 실패할 여지가 거의 없지만, 만에 하나 실패해도
+        # 위 요약(캐시)은 항상 표시되도록 분리한다.
+        try:
+            self._refresh_io()
+        except Exception:
+            logging.getLogger("hmi").exception("status I/O 그리드 갱신 실패")
 
     def _refresh_io(self) -> None:
+        # 컨트롤러가 매 스캔 캐시한 값만 사용 — 상태 페이지가 버스를 추가로 폴링하지 않는다
+        # (공유 RS-485 노이즈/글리치 최소화).
+        io = self.ctrl.io
         if self._tab == 2:
+            ma = io.ma_snapshot()
             headers = ["채널", "신호", "전류"]
-            rows = []
-            for i in range(8):
-                rows.append([f"AI-{i:02d}", _AI_KO[i], f"{self.ai.read_ma(i):.2f} mA"])
+            rows = [[f"AI-{i:02d}", _AI_KO[i], f"{ma[i]:.2f} mA"] for i in range(8)]
             self._render_grid(headers, rows, states=None)
             return
-        module, di_ko, do_ko = (
-            (self.a1, _DI1_KO, _DO1_KO) if self._tab == 0 else (self.a2, _DI2_KO, _DO2_KO)
-        )
-        di = module.read_di(); do = module.read_do()
+        if self._tab == 0:
+            di, do, di_ko, do_ko = io.di_snapshot(1), self.a1.cached_do(), _DI1_KO, _DO1_KO
+        else:
+            di, do, di_ko, do_ko = io.di_snapshot(2), self.a2.cached_do(), _DI2_KO, _DO2_KO
         headers = ["채널", "입력 신호", "상태", "채널", "출력 신호", "상태"]
         rows = []
         states = []

@@ -40,6 +40,12 @@ class Adam4055:
             self._refresh_from_hw()
         return list(self._hw_do)
 
+    def cached_do(self) -> list[bool]:
+        """마지막으로 반영된 DO 상태(추가 폴링 없음). 상태표시용."""
+        if self.mock:
+            return list(self._do)
+        return list(self._hw_do) if self._hw_do is not None else list(self._do)
+
     def _refresh_from_hw(self) -> None:
         """$AA6 한 번 읽어 DI/DO 를 함께 캐시한다."""
         r = self._hub.command(f"${self.unit_id:02X}6")
