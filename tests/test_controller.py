@@ -349,6 +349,29 @@ def test_auto_down_no_sensor_proceeds_no_error():
     assert Alarm.DOWN_TIMEOUT not in ctrl.alarms
 
 
+def test_auto_down_load_detect():
+    """하강 하중 도달 사용 시: 로드셀이 기준값 이상이면 위치센서 없이도 다웰 진입."""
+    ctrl, a1, a2, ai, clk = _build(down_timeout_ms=5000, down_dwell_ms=50)
+    ctrl.settings.down_load_detect = True
+    ctrl.settings.down_load_threshold_kgf = 300.0
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, True)
+    ai.set_mock_ma(0, 4.0)                       # ~0 kgf
+    ctrl.scan()
+    _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+    for _ in range(6):
+        clk.advance(0.03); ctrl.scan()
+        if ctrl.out.valve_down:                 # 실제 하강 밸브가 켜질 때까지 진행
+            break
+    assert ctrl.state is State.AUTO_MOVE_DOWN and ctrl.out.valve_down
+    clk.advance(0.03); ctrl.scan()
+    assert ctrl.state is State.AUTO_MOVE_DOWN    # 하중 낮음 → 계속 하강
+    ai.set_mock_ma(0, 4.0 + 16.0 * 0.4)          # 400 kgf ≥ 기준 300
+    clk.advance(0.03); ctrl.scan()
+    assert ctrl.state is State.AUTO_DWELL_DOWN    # 하중 도달 → 다웰 진입
+    assert not ctrl.alarms                        # 에러 아님
+
+
 def test_separate_up_timeout():
     # 하강은 즉시 도달, 상승만 미도달 → UP_TIMEOUT (timeout 분리 확인)
     ctrl, a1, a2, ai, clk = _build(down_timeout_ms=2000, up_timeout_ms=150, down_dwell_ms=20)

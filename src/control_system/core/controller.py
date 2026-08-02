@@ -333,11 +333,17 @@ class Controller:
 
     def _run_move_down(self) -> None:
         self.out.valve_down = True
-        # 하강 위치센서 도달 → 다웰. 단, 시스템 구성상 샘플 크기에 따라 하강 센서에 안
-        # 닿을 수 있으므로, 이동시간(down_timeout_ms)이 지나면 에러가 아니라 정상적으로
-        # 다웰로 넘어간다(센서 미도달 = 샘플에 눌려 멈춘 것). 과가압 보호는 _run_state
-        # 상단의 LOAD_OVER_LIMIT(하중 상한)이 담당한다.
-        if self.io.di(DI1.CYL_DOWN_POS) or self._deadline_passed():
+        # 도달 판정(먼저 오는 것 하나라도):
+        #  1) 하강 위치센서(CYL_DOWN_POS)
+        #  2) 하중 도달 — 사용 시, 로드셀이 기준값 이상이면 샘플에 닿아 가압 시작으로 봄
+        #     (하강 센서가 샘플 크기 때문에 동작 안 하는 구성 대비).
+        #  3) 이동시간(down_timeout_ms) 경과 — 에러 아님, 정상적으로 다웰 진입.
+        # 과가압 보호는 _run_state 상단의 LOAD_OVER_LIMIT(하중 상한)이 담당한다.
+        load_reached = (
+            self.settings.down_load_detect
+            and self.load_kgf >= self.settings.down_load_threshold_kgf
+        )
+        if self.io.di(DI1.CYL_DOWN_POS) or load_reached or self._deadline_passed():
             self._start_dwell(State.AUTO_DWELL_DOWN, self.settings.down_dwell_ms)
 
     def _run_dwell_down(self) -> None:

@@ -167,9 +167,9 @@ class MainWindow(QMainWindow):
     def _build_bottom_nav(self) -> QWidget:
         nav = QWidget()
         nav.setObjectName("bottomNav")
-        nav.setFixedHeight(58)
+        nav.setFixedHeight(87)                      # 손 터치용 1.5배 (기존 58)
         lay = QHBoxLayout(nav)
-        lay.setContentsMargins(10, 7, 10, 7)
+        lay.setContentsMargins(10, 8, 10, 8)
         lay.setSpacing(8)
         self._nav_group = QButtonGroup(self)
         self._nav_group.setExclusive(True)
@@ -177,6 +177,7 @@ class MainWindow(QMainWindow):
             btn = QPushButton(label)
             btn.setObjectName("navBtn")
             btn.setCheckable(True)
+            btn.setMinimumHeight(71)               # 네비 높이에 맞춰 버튼도 확대
             btn.clicked.connect(lambda _=False, idx=i: self._stack.setCurrentIndex(idx))
             self._nav_group.addButton(btn, i)
             lay.addWidget(btn)

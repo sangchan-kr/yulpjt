@@ -95,6 +95,10 @@ class Config:
     down_timeout_ms: int = 5000         # 하강 위치 도달 타임아웃 (이동시간 다를 수 있어 분리)
     up_timeout_ms: int = 5000           # 상승 위치 도달 타임아웃
     target_count: int = 500             # 목표 반복 횟수
+    # 하강 하중 도달 판정: 하강 중 로드셀이 기준값 이상이면 '도달'로 보고 다웰 진입
+    # (하강 위치센서가 샘플 크기 때문에 동작하지 않는 구성 대비). 사용여부/기준값 가변.
+    down_load_detect: bool = False      # 하강 하중 도달 판정 사용
+    down_load_threshold_kgf: float = 100.0  # 하강 도달로 볼 하중(kgf)
 
     # --- 진공 (수동, HMI 토글 — 완전 분리, 모든 진공 알람은 논블로킹) -----
     vacuum_confirm_timeout_ms: int = 2000  # Vacuum ON 후 OK 미도달 → VACUUM_NOT_REACHED(경고)
@@ -104,7 +108,7 @@ class Config:
     blowoff_hold_ms: int = 300          # 유지보수 시험: blow-off 최대 유지
 
     # --- 입력 논리 반전 (NPN 등, v1.12 §7.2) ------------------------------
-    invert_vacuum_ok: bool = False      # ZK2A NPN 스위치 결선 검증 후 결정 (Phase D)
+    invert_vacuum_ok: bool = True       # 진공 확인 센서(ZK2A NPN) 극성 반대 — 현장 확인
     invert_mode_auto: bool = True       # AUTO/MANUAL 셀렉터 결선 반대 → MODE_AUTO 반전(현장 확인)
 
     # --- 유지보수 (관리자) -------------------------------------------------
@@ -144,6 +148,8 @@ class RuntimeSettings:
     down_timeout_ms: int = 5000
     up_timeout_ms: int = 5000
     load_limit_kgf: float = 500.0
+    down_load_detect: bool = False         # 하강 하중 도달 판정 사용
+    down_load_threshold_kgf: float = 100.0  # 하강 도달로 볼 하중(kgf)
     vacuum_confirm_timeout_ms: int = 2000
     data_save: bool = True                 # 사이클 CSV 로깅 on/off
     trend_window_s: int = 30               # 실시간 그래프 구간 (C5)
@@ -151,8 +157,8 @@ class RuntimeSettings:
 
     _EDITABLE = (
         "target_count", "down_dwell_ms", "up_dwell_ms", "down_timeout_ms",
-        "up_timeout_ms", "load_limit_kgf", "vacuum_confirm_timeout_ms",
-        "data_save", "trend_window_s", "brightness",
+        "up_timeout_ms", "load_limit_kgf", "down_load_detect", "down_load_threshold_kgf",
+        "vacuum_confirm_timeout_ms", "data_save", "trend_window_s", "brightness",
     )
 
     @classmethod
@@ -164,6 +170,8 @@ class RuntimeSettings:
             down_timeout_ms=cfg.down_timeout_ms,
             up_timeout_ms=cfg.up_timeout_ms,
             load_limit_kgf=cfg.load_limit_kgf,
+            down_load_detect=cfg.down_load_detect,
+            down_load_threshold_kgf=cfg.down_load_threshold_kgf,
             vacuum_confirm_timeout_ms=cfg.vacuum_confirm_timeout_ms,
         )
 

@@ -74,7 +74,7 @@ QPushButton#danger:disabled {{ background: #e7c9c5; border-color: #e0b7b2; color
 
 QPushButton#navBtn {{
     background: #f4f7fa; border: 1px solid #d3dce6;
-    color: #3a4a5c; border-radius: 10px; font-size: 17px; font-weight: 800;
+    color: #3a4a5c; border-radius: 10px; font-size: 25px; font-weight: 800;
 }}
 QPushButton#navBtn:checked {{ background: #1f6fb2; border-color: #195f9c; color: #ffffff; }}
 

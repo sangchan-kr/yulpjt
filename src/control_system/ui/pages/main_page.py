@@ -71,7 +71,7 @@ class MainPage(QWidget):
         cap.setObjectName("mini")
         cap.setAlignment(Qt.AlignmentFlag.AlignBottom)
         self._count_big = QLabel("0 / 0")
-        self._count_big.setStyleSheet(f"font-size:30px; font-weight:900; color:{theme.TITLE};")
+        self._count_big.setStyleSheet(f"font-size:46px; font-weight:900; color:{theme.TITLE};")
         head_row = QHBoxLayout()
         head_row.addWidget(head)
         head_row.addStretch(1)

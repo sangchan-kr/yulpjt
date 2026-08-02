@@ -24,6 +24,8 @@ _LEFT = [
     ("up_dwell_ms", "상승 유지시간", "초", "float", 0.001),
     ("down_timeout_ms", "하강 제한시간", "초", "float", 0.001),
     ("up_timeout_ms", "상승 제한시간", "초", "float", 0.001),
+    ("down_load_detect", "하강 하중 도달 사용", "", "bool", 1),
+    ("down_load_threshold_kgf", "하강 도달 하중", "kgf", "float", 1),
 ]
 _RIGHT = [
     ("load_limit_kgf", "하중 상한", "kgf", "float", 1),
