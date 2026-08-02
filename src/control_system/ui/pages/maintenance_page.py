@@ -83,13 +83,15 @@ class MaintenancePage(QWidget):
         self._b_blow.released.connect(lambda: self.ctrl.request_maintenance_blowoff(False))
         lay.addWidget(self._b_blow)
 
-        head2 = QLabel("DO 시험 (타워/부저)"); head2.setObjectName("cardTitle")
+        head2 = QLabel("DO 시험 (버튼램프/부저)"); head2.setObjectName("cardTitle")
         lay.addWidget(head2)
         grid = QGridLayout()
         self._do_btns = {}
-        names = {DO1.TOWER_GREEN: "녹색등", DO1.TOWER_YELLOW: "황색등",
-                 DO1.TOWER_RED: "적색등", DO1.TOWER_BUZZER: "부저"}
-        for i, sig in enumerate((DO1.TOWER_GREEN, DO1.TOWER_YELLOW, DO1.TOWER_RED, DO1.TOWER_BUZZER)):
+        names = {DO1.LAMP_AUTO_START: "시작 램프", DO1.LAMP_AUTO_STOP: "정지 램프",
+                 DO1.LAMP_MANUAL_UP: "상승 램프", DO1.LAMP_MANUAL_DOWN: "하강 램프",
+                 DO1.BUZZER: "부저"}
+        for i, sig in enumerate((DO1.LAMP_AUTO_START, DO1.LAMP_AUTO_STOP,
+                                 DO1.LAMP_MANUAL_UP, DO1.LAMP_MANUAL_DOWN, DO1.BUZZER)):
             b = QPushButton(names[sig]); b.setCheckable(True); b.setMinimumHeight(40)
             b.toggled.connect(lambda on, s=sig: self.ctrl.set_do_override(s, on))
             self._do_btns[sig] = b

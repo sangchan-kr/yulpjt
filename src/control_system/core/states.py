@@ -52,15 +52,20 @@ VACUUM_WARNINGS = frozenset({
 
 @dataclass
 class Outputs:
-    """한 스캔에서 계산된 '원하는' 출력. safety 초크포인트를 거쳐 실제로 쓰인다."""
+    """한 스캔에서 계산된 '원하는' 출력. safety 초크포인트를 거쳐 실제로 쓰인다.
+
+    IO map v0.2: 타워램프 제거 → 버튼 내장 램프 4개 + 부저.
+    램프/부저는 액추에이터가 아니라 표시용이라 safety 초크포인트가 끄지 않는다.
+    """
     valve_down: bool = False
     valve_up: bool = False
     vacuum_on: bool = False
     blow_off_on: bool = False
-    tower_green: bool = False
-    tower_yellow: bool = False
-    tower_red: bool = False
-    tower_buzzer: bool = False
+    lamp_auto_start: bool = False
+    lamp_auto_stop: bool = False       # 대표 알람 램프
+    lamp_manual_up: bool = False
+    lamp_manual_down: bool = False
+    buzzer: bool = False
 
     def actuators_off(self) -> None:
         self.valve_down = self.valve_up = self.vacuum_on = self.blow_off_on = False

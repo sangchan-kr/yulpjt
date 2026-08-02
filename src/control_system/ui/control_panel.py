@@ -174,8 +174,8 @@ class ControlPanel(QWidget):
         self._state_lbl.setStyleSheet("font-weight:900;")
         g.addWidget(self._state_lbl, 0, 0, 1, 4)
         self._lamps = {}
-        specs = [("하강밸브", "vd"), ("상승밸브", "vu"), ("진공", "vac"),
-                 ("타워G", "tg"), ("타워Y", "ty"), ("타워R", "tr"), ("부저", "bz")]
+        specs = [("하강밸브", "vd"), ("상승밸브", "vu"), ("진공", "vac"), ("부저", "bz"),
+                 ("시작램프", "ls"), ("정지램프", "lp"), ("상승램프", "lu"), ("하강램프", "ld")]
         for i, (label, key) in enumerate(specs):
             lamp = QLabel(label)
             lamp.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -229,10 +229,11 @@ class ControlPanel(QWidget):
         self._lamps["vd"].setStyleSheet(self._lamp(o.valve_down, theme.BLUE))
         self._lamps["vu"].setStyleSheet(self._lamp(o.valve_up, theme.BLUE))
         self._lamps["vac"].setStyleSheet(self._lamp(o.vacuum_on, theme.GREEN))
-        self._lamps["tg"].setStyleSheet(self._lamp(o.tower_green, theme.GREEN))
-        self._lamps["ty"].setStyleSheet(self._lamp(o.tower_yellow, theme.YELLOW))
-        self._lamps["tr"].setStyleSheet(self._lamp(o.tower_red, theme.RED))
-        self._lamps["bz"].setStyleSheet(self._lamp(o.tower_buzzer, "#8a5a12"))
+        self._lamps["bz"].setStyleSheet(self._lamp(o.buzzer, "#8a5a12"))
+        self._lamps["ls"].setStyleSheet(self._lamp(o.lamp_auto_start, theme.GREEN))
+        self._lamps["lp"].setStyleSheet(self._lamp(o.lamp_auto_stop, theme.YELLOW))
+        self._lamps["lu"].setStyleSheet(self._lamp(o.lamp_manual_up, theme.BLUE))
+        self._lamps["ld"].setStyleSheet(self._lamp(o.lamp_manual_down, theme.BLUE))
 
     @staticmethod
     def _sync_cb(cb: QCheckBox, val: bool) -> None:

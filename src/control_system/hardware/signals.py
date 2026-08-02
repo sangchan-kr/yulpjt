@@ -20,15 +20,18 @@ class DI1(IntEnum):
 
 
 class DO1(IntEnum):
-    """ADAM-4055-C #1 Digital Output (타워램프/프레스 밸브)."""
-    TOWER_GREEN = 0
-    TOWER_YELLOW = 1
-    TOWER_RED = 2
-    TOWER_BUZZER = 3
-    K_VALVE_DOWN = 4     # DS6340 하강 솔레노이드
-    K_VALVE_UP = 5       # DS6340 상승 솔레노이드
-    SPARE_DO_1 = 6
-    SPARE_DO_2 = 7
+    """ADAM-4055-C #1 Digital Output (버튼 내장 램프/프레스 밸브/부저) — IO map v0.2.
+
+    타워램프는 제거됐고 버튼 4개의 내장 램프를 개별 제어한다(직접 sink 구동).
+    """
+    LAMP_AUTO_START = 0   # Auto Start 버튼 램프
+    LAMP_AUTO_STOP = 1    # Auto Stop 버튼 램프 (대표 알람 램프)
+    LAMP_MANUAL_UP = 2    # Manual Up 버튼 램프
+    LAMP_MANUAL_DOWN = 3  # Manual Down 버튼 램프
+    K_VALVE_DOWN = 4      # RY-02 → DS6340 하강 솔레노이드
+    K_VALVE_UP = 5        # RY-03 → DS6340 상승 솔레노이드
+    BUZZER = 6            # BZ-01 Autonics B2PB-B1D-R (24V 직접 구동)
+    SPARE_DO_7 = 7
 
 
 class DI2(IntEnum):

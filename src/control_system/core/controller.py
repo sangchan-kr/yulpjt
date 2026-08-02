@@ -109,7 +109,7 @@ class Controller:
     # 유지보수 DO 시험: 타워/부저/예비 채널만 강제 출력(액추에이터/진공 제외).
     # 주의: DO1/DO2 는 IntEnum 이라 채널 번호가 겹치면 서로 == 로 판정된다.
     # 따라서 모듈 타입 + 채널번호로 판별하고, override 도 (타입, 번호) 키로 저장한다.
-    _DO1_TEST = frozenset({0, 1, 2, 3, 6, 7})   # 타워 G/Y/R/부저 + 예비
+    _DO1_TEST = frozenset({0, 1, 2, 3, 6, 7})   # 버튼램프 4 + 부저 + 예비 (밸브 4,5 제외)
     _DO2_TEST = frozenset({2, 3, 4, 5, 6, 7})   # 진공/파기(0,1) 제외한 예비
 
     def set_do_override(self, sig, value: bool) -> None:
@@ -165,7 +165,7 @@ class Controller:
         self._handle_global()
         self._run_state()
         self._update_vacuum()
-        self._update_tower()
+        self._update_lamps()
 
         # §19 단일 출력 초크포인트 (진공 경고는 절대 블로킹 목록에 넣지 않는다)
         blocking, warnings = apply_output_safety(self.out, self.sol_enable_ok, self.adam2_connected)
@@ -387,38 +387,57 @@ class Controller:
             self.out.blow_off_on = self._blowoff_phase == 2 and self._now < self._t_blowoff
         self._prev_maint_req = ok
 
-    # ----------------------------------------------------------------- 타워
-    def _update_tower(self) -> None:
+    # ----------------------------------------------------------------- 버튼 램프/부저
+    def _update_lamps(self) -> None:
+        """버튼 내장 램프 4개 + 부저 (IO map v0.2 §2). 표시용이라 safety 초크포인트 무관.
+
+        Auto Stop 램프를 안전정지/에러 대표 알람 램프로 쓴다.
+        slow=1Hz(대기/리셋 대기), fast≈3Hz(에러/안전정지 강조).
+        """
         o = self.out
-        o.tower_green = o.tower_yellow = o.tower_red = o.tower_buzzer = False
-        blink = int(self._now * 2) % 2 == 0
+        o.lamp_auto_start = o.lamp_auto_stop = False
+        o.lamp_manual_up = o.lamp_manual_down = False
+        o.buzzer = False
+        slow = int(self._now * 2) % 2 == 0
+        fast = int(self._now * 6) % 2 == 0
 
         s = self.state
         if s is State.SAFETY_STOP:
-            o.tower_red = blink
-            o.tower_buzzer = blink
-        elif s is State.ERROR or self.alarms:          # 블로킹 알람만 (진공 경고 무관)
-            o.tower_red = True
-            o.tower_buzzer = blink
-        elif s in (State.AUTO_MOVE_DOWN, State.AUTO_DWELL_DOWN, State.AUTO_MOVE_UP,
-                   State.AUTO_DWELL_UP, State.AUTO_COUNT_UPDATE, State.AUTO_PRECHECK):
-            o.tower_green = blink
+            if self.sol_enable_ok:              # 복귀 조건 충족 → HMI Safety Reset 대기
+                o.lamp_auto_stop = slow
+            else:
+                o.lamp_auto_stop = fast
+                o.buzzer = fast                 # intermittent ON
+        elif s is State.ERROR or self.alarms:   # 블로킹 알람 (진공 경고 무관)
+            o.lamp_auto_stop = fast
+            o.buzzer = fast
+        elif self._auto_running():              # 자동 운전 중: 시작 ON + 정지 ON(Stop 가능)
+            o.lamp_auto_start = True
+            o.lamp_auto_stop = True
+        elif s is State.AUTO_IDLE:
+            o.lamp_auto_start = slow            # Start 입력 대기
         elif s is State.AUTO_COMPLETE:
-            o.tower_green = True
+            o.lamp_auto_start = True            # 재시작 가능 (완료 알림 부저는 선택 — 생략)
         elif s is State.MANUAL_IDLE:
-            o.tower_yellow = blink
-        else:
-            o.tower_yellow = True
+            if o.valve_up:
+                o.lamp_manual_up = slow         # 상승 동작 중
+            elif o.valve_down:
+                o.lamp_manual_down = slow       # 하강 동작 중
+            else:
+                o.lamp_manual_up = True         # 상승/하강 가능
+                o.lamp_manual_down = True
+        # BOOT 등 그 외 상태: 전부 OFF
 
     # ----------------------------------------------------------------- 출력 반영
     def _stage_and_flush(self) -> None:
         o = self.out
         self.io.set(DO1.K_VALVE_DOWN, o.valve_down)
         self.io.set(DO1.K_VALVE_UP, o.valve_up)
-        self.io.set(DO1.TOWER_GREEN, o.tower_green)
-        self.io.set(DO1.TOWER_YELLOW, o.tower_yellow)
-        self.io.set(DO1.TOWER_RED, o.tower_red)
-        self.io.set(DO1.TOWER_BUZZER, o.tower_buzzer)
+        self.io.set(DO1.LAMP_AUTO_START, o.lamp_auto_start)
+        self.io.set(DO1.LAMP_AUTO_STOP, o.lamp_auto_stop)
+        self.io.set(DO1.LAMP_MANUAL_UP, o.lamp_manual_up)
+        self.io.set(DO1.LAMP_MANUAL_DOWN, o.lamp_manual_down)
+        self.io.set(DO1.BUZZER, o.buzzer)
         self.io.set(DO2.K_VACUUM_ON, o.vacuum_on)
         self.io.set(DO2.K_BLOW_OFF_ON, o.blow_off_on)
         # 유지보수 DO 시험 오버라이드(안전 채널만) — 자동운전 중이 아닐 때만 반영.
