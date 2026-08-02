@@ -5,6 +5,7 @@ QTimer 로 controller.scan() 을 주기 실행하고 공통 영역/현재 페이
 """
 
 import datetime
+import logging
 import time
 
 from PySide6.QtCore import Qt, QTimer
@@ -277,7 +278,7 @@ class MainWindow(QMainWindow):
         try:
             self.ctrl.scan()
         except Exception:
-            pass
+            logging.getLogger("hmi").exception("scan 실패(통신 글리치?)")
         self._trend.add(self.ctrl.load_kgf)
         if self._maint_deadline and time.monotonic() > self._maint_deadline:
             self._stack.setCurrentIndex(0)      # 서비스 타임아웃 → 운전 화면
@@ -289,7 +290,8 @@ class MainWindow(QMainWindow):
             try:
                 page.update_view()              # 페이지의 직접 I/O 읽기가 실패해도 계속
             except Exception:
-                pass
+                logging.getLogger("hmi").exception(
+                    "%s.update_view 실패", type(page).__name__)
         self._maybe_log()
         self._update_overlay()
 

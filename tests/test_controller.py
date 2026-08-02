@@ -177,6 +177,36 @@ def test_manual_up_down_and_conflict():
     assert Alarm.MANUAL_CONFLICT in ctrl.alarms
 
 
+def test_manual_stops_at_position_sensor():
+    """수동: 위치 센서에 닿으면 해당 방향 밸브 정지. 하강은 센서 미도달이어도 에러 아님."""
+    ctrl, a1, a2, ai, clk = _build()
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, False)
+    ctrl.scan()
+    # 상승: 아직 상승위치 미도달 → 상승
+    _di(a1, DI1.MANUAL_UP_PB, True)
+    ctrl.scan()
+    assert ctrl.out.valve_up
+    # 상승위치 센서 도달 → 버튼 계속 눌러도 정지
+    _di(a1, DI1.CYL_UP_POS, True)
+    ctrl.scan()
+    assert not ctrl.out.valve_up
+    _di(a1, DI1.MANUAL_UP_PB, False)
+    _di(a1, DI1.CYL_UP_POS, False)
+    # 하강: 하강위치 미도달(샘플에 막힘) → 계속 가압, 에러/알람 없음
+    _di(a1, DI1.MANUAL_DOWN_PB, True)
+    for _ in range(20):
+        clk.advance(0.1)
+        ctrl.scan()
+    assert ctrl.out.valve_down
+    assert ctrl.state is State.MANUAL_IDLE
+    assert not ctrl.alarms                        # 센서 미도달이 에러가 되면 안 됨
+    # 하강위치 센서 도달 → 정지
+    _di(a1, DI1.CYL_DOWN_POS, True)
+    ctrl.scan()
+    assert not ctrl.out.valve_down
+
+
 def test_manual_blocked_when_sol_off():
     ctrl, a1, a2, ai, clk = _build()
     _di(a1, DI1.SOL_ENABLE_OK, False)

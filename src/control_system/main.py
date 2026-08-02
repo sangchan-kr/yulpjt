@@ -1,4 +1,7 @@
+import logging
+import os
 import sys
+from logging.handlers import RotatingFileHandler
 from os import environ
 
 from PySide6.QtWidgets import QApplication
@@ -15,6 +18,24 @@ from .ui.main_window import MainWindow
 
 SETTINGS_PATH = "settings.json"
 RUN_LOG_PATH = "data/run_log.csv"
+APP_LOG_PATH = "data/app.log"
+
+
+def _setup_logging() -> None:
+    """앱 로그를 data/app.log 에 회전 저장(+stderr). 잡아먹힌 예외/통신 오류 사후 추적용.
+
+    유저 journald 가 영속화 안 돼도 현장에서 원인을 남기려면 파일 로깅이 필요하다.
+    """
+    os.makedirs("data", exist_ok=True)
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    fh = RotatingFileHandler(APP_LOG_PATH, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    root.addHandler(sh)
 
 
 def _resolve_serial_port(cfg: Config) -> str:
@@ -61,6 +82,8 @@ def build_io_stack(cfg: Config):
 
 
 def main() -> int:
+    _setup_logging()
+    logging.getLogger("boot").info("control-system 시작")
     cfg = Config.from_env()
     app = QApplication(sys.argv)
     app.setApplicationName("Control System")

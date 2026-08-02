@@ -14,6 +14,7 @@
 시간은 주입 가능한 clock() 으로 다뤄 테스트에서 결정적으로 굴린다.
 """
 
+import logging
 import time
 
 from ..config import Config, RuntimeSettings
@@ -163,7 +164,7 @@ class Controller:
         try:
             self.io.refresh_inputs()
         except Exception:                       # 통신 오류(AdamCommError 등) — 크래시 방지
-            self._flag_comm_error()
+            self._flag_comm_error("입력 읽기(refresh_inputs)")
             return
         self.alarms.discard(Alarm.ADAM_COMM_ERROR)   # 읽기 성공 → 통신 알람 자동 해제
         self._read_inputs()
@@ -180,10 +181,15 @@ class Controller:
         try:
             self._stage_and_flush()
         except Exception:                       # 출력 쓰기 통신 오류
-            self._flag_comm_error()
+            self._flag_comm_error("출력 쓰기(stage_and_flush)")
 
-    def _flag_comm_error(self) -> None:
-        """통신 오류 시: 블로킹 알람 + 액추에이터/진공 명령 OFF. 크래시 없이 다음 스캔에서 복구 시도."""
+    def _flag_comm_error(self, where: str = "") -> None:
+        """통신 오류 시: 블로킹 알람 + 액추에이터/진공 명령 OFF. 크래시 없이 다음 스캔에서 복구 시도.
+
+        진입 시점에만 traceback 로깅(스캔 10Hz 스팸 방지). 다음 스캔에서 읽기 성공하면 알람 자동 해제.
+        """
+        if Alarm.ADAM_COMM_ERROR not in self.alarms:   # 오류 진입(엣지)에서만 1회 기록
+            logging.getLogger("ctrl").exception("통신 오류 진입: %s", where)
         self.alarms.add(Alarm.ADAM_COMM_ERROR)
         self.out.actuators_off()
         self.vacuum_command = False
@@ -305,8 +311,11 @@ class Controller:
             self.out.valve_down = False
         else:
             self.alarms.discard(Alarm.MANUAL_CONFLICT)
-            self.out.valve_up = up
-            self.out.valve_down = down
+            # 위치 센서에 닿으면 해당 방향 밸브 정지(버튼을 계속 눌러도 더 이동하지 않음).
+            self.out.valve_up = up and not self.io.di(DI1.CYL_UP_POS)
+            # 하강은 샘플 크기에 따라 하강 센서에 안 닿을 수 있다. 그건 정상(에러 아님) —
+            # 버튼 누르는 동안 계속 하강/가압하고, 하강 센서에 닿으면 그때 정지한다.
+            self.out.valve_down = down and not self.io.di(DI1.CYL_DOWN_POS)
 
     def _run_precheck(self) -> None:
         # 진공은 Auto Start 허가 조건이 아니다(완전 분리). 블로킹 알람만 확인.
