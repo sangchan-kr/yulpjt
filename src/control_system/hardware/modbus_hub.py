@@ -51,24 +51,24 @@ class ModbusHub:
     # 주의: ADAM-4055-C / ADAM-4017+ 의 실제 레지스터 주소는 Advantech 매뉴얼로
     # 확인해야 한다. 여기서는 표준 함수만 노출하고 주소는 각 모듈이 넘긴다.
     def read_discrete_inputs(self, unit: int, address: int, count: int) -> list[bool]:
-        rr = self._client.read_discrete_inputs(address, count=count, slave=unit)
+        rr = self._client.read_discrete_inputs(address, count=count, device_id=unit)
         if rr.isError():
             raise ModbusError(f"read_discrete_inputs unit={unit} addr={address}: {rr}")
         return list(rr.bits[:count])
 
     def read_coils(self, unit: int, address: int, count: int) -> list[bool]:
-        rr = self._client.read_coils(address, count=count, slave=unit)
+        rr = self._client.read_coils(address, count=count, device_id=unit)
         if rr.isError():
             raise ModbusError(f"read_coils unit={unit} addr={address}: {rr}")
         return list(rr.bits[:count])
 
     def write_coils(self, unit: int, address: int, values: list[bool]) -> None:
-        rr = self._client.write_coils(address, list(values), slave=unit)
+        rr = self._client.write_coils(address, list(values), device_id=unit)
         if rr.isError():
             raise ModbusError(f"write_coils unit={unit} addr={address}: {rr}")
 
     def read_input_registers(self, unit: int, address: int, count: int) -> list[int]:
-        rr = self._client.read_input_registers(address, count=count, slave=unit)
+        rr = self._client.read_input_registers(address, count=count, device_id=unit)
         if rr.isError():
             raise ModbusError(f"read_input_registers unit={unit} addr={address}: {rr}")
         return list(rr.registers[:count])
