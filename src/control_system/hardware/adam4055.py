@@ -66,6 +66,7 @@ class Adam4055:
             resp = self._hub.command(f"#{self.unit_id:02X}00{byte:02X}")
             if not resp.startswith(">"):
                 raise AdamCommError(f"{self.name} DO 쓰기 실패: {resp!r}")
+            self._hw_do = list(self._staged)   # 방금 쓴 값으로 피드백 캐시 갱신
         self._do = list(self._staged)
 
     # --- 시뮬레이터용 (mock 전용) ----------------------------------------
