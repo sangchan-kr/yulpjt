@@ -372,7 +372,7 @@ class MainWindow(QMainWindow):
         vac_text = {"OK": "진공 정상", "BUILDING": "진공 생성중",
                     "RESIDUAL": "진공 잔압", "OFF": "진공 꺼짐"}[vs]
         self._set_pill("vacuum", vac_color, vac_text)
-        valid = c.loadcell.current_valid()
+        valid = c.loadcell_valid                # 캐시(스캔에서 계산) — 추가 시리얼 읽기 안 함
         self._set_pill("loadcell", theme.GREEN if valid else theme.RED,
                        "하중 정상" if valid else "하중 오류")
         self._set_pill("adam", theme.GREEN if c.adam2_connected else theme.RED,

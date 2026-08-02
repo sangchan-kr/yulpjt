@@ -36,19 +36,29 @@ class LoadCell:
         self.scale = scale
         self.load_calibration()
 
-    # --- 읽기 -------------------------------------------------------------
+    # --- 순수 변환 (이미 읽은 mA 로부터, 시리얼 접근 없음) ----------------
+    def raw_kgf_from_ma(self, ma: float) -> float:
+        return (ma - 4.0) / 16.0 * self.full_scale_kgf
+
+    def kgf_from_ma(self, ma: float) -> float:
+        return (self.raw_kgf_from_ma(ma) - self.zero_offset) * self.scale
+
+    def valid_from_ma(self, ma: float) -> bool:
+        return ma >= self.WIRE_BREAK_MA
+
+    # --- 읽기 (라이브 시리얼) — 툴/캘리브레이션용. 스캔 루프는 캐시값을 쓴다 -----
     def read_ma(self) -> float:
         return self._ai.read_ma(self.channel)
 
     def current_valid(self) -> bool:
         """4-20 mA 루프가 살아있는지 (단선 감지)."""
-        return self.read_ma() >= self.WIRE_BREAK_MA
+        return self.valid_from_ma(self.read_ma())
 
     def read_raw_kgf(self) -> float:
-        return (self.read_ma() - 4.0) / 16.0 * self.full_scale_kgf
+        return self.raw_kgf_from_ma(self.read_ma())
 
     def read_kgf(self) -> float:
-        return (self.read_raw_kgf() - self.zero_offset) * self.scale
+        return self.kgf_from_ma(self.read_ma())
 
     # --- 캘리브레이션 -----------------------------------------------------
     def tare(self) -> None:

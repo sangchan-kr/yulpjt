@@ -52,6 +52,7 @@ class Controller:
         self.sol_enable_ok = False
         self.mode_auto = False
         self.vacuum_ok = False
+        self.loadcell_valid = True             # 로드셀 4-20mA 루프 유효(단선 아님)
         self.adam2_connected = True                # 실통신 게이팅은 Phase D
         self._prev_di: dict = {}
 
@@ -212,7 +213,10 @@ class Controller:
         self.mode_auto = self.io.di(DI1.MODE_AUTO)
         self.vacuum_ok = self.io.di(DI2.VACUUM_OK)
 
-        self.load_kgf = self.loadcell.read_kgf()
+        # refresh_inputs 에서 이미 읽어 캐시한 mA 를 재사용 — 스캔당 로드셀 시리얼 중복 제거.
+        ma = self.io.ma(AI.LOADCELL_CURRENT)
+        self.load_kgf = self.loadcell.kgf_from_ma(ma)
+        self.loadcell_valid = self.loadcell.valid_from_ma(ma)
         if self.load_kgf > self.run_peak_load_kgf:
             self.run_peak_load_kgf = self.load_kgf
         if self.load_kgf > self.cycle_peak_load_kgf:

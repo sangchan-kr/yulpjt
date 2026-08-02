@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.states import State
-from ...hardware.signals import DO1
+from ...hardware.signals import AI, DO1
 from .. import theme
 from ..keypad import edit_number
 
@@ -183,8 +183,9 @@ class MaintenancePage(QWidget):
         c = self.ctrl
         self._vac_cmd.setText("켜짐" if c.vacuum_command else "꺼짐")
         self._vac_ok.setText("정상" if c.vacuum_ok else "꺼짐")
-        self._raw.setText(f"{self.loadcell.read_ma():.2f} mA")
-        self._load.setText(f"{self.loadcell.read_kgf():.1f} kgf")
+        # 컨트롤러가 스캔마다 캐시한 값 사용(추가 시리얼 읽기 안 함).
+        self._raw.setText(f"{c.io.ma(AI.LOADCELL_CURRENT):.2f} mA")
+        self._load.setText(f"{c.load_kgf:.1f} kgf")
         self._zero.setText(f"{self.loadcell.zero_offset:.1f} kgf")
         self._scale.setText(f"{self.loadcell.scale:.3f}")
         allowed, _reason = c.vacuum_permission()
