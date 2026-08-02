@@ -1,14 +1,18 @@
-"""단일 RS-485 버스(pymodbus 시리얼 클라이언트) 래퍼.
+"""RS-485 시리얼 버스 — Advantech ADAM ASCII(DCON) 프로토콜 전송 계층.
 
-3개 노드(ADAM-4055-C #1/#2, ADAM-4017+-F)가 하나의 버스를 공유하므로
-클라이언트는 여기서 한 번만 만들고 각 모듈이 unit_id 로 구분해 사용한다.
+※ 원래 Modbus RTU 래퍼였으나, 현장 ADAM-4055/4017+ 모듈이 ASCII 모드로 동작하고
+   (프로토콜 전환은 Windows 유틸리티 전용) 파이에서 설정 가능한 ASCII 로 전환했다.
+   파일명은 호환을 위해 유지. 3개 노드(4055 #1/#2, 4017+)가 한 버스를 공유하므로
+   시리얼 포트는 여기서 한 번만 열고 각 모듈이 주소(unit_id)로 구분해 명령한다.
 
-mock 모드에서는 아무 것도 열지 않는다 — 각 하드웨어 모듈이 자체적으로
-합성 데이터를 만든다. 실 Modbus 경로는 하드웨어 입고 후(Phase D) 검증한다.
+명령/응답 규약(DCON): 명령 문자열 + CR(0x0D) 전송 → 응답을 CR 까지 읽음.
+  성공 응답은 '!' 또는 '>' 로 시작, 오류는 '?' 로 시작, 무응답은 타임아웃.
+
+mock 모드에서는 포트를 열지 않는다(각 모듈이 합성 데이터 생성).
 """
 
 
-class ModbusHub:
+class AdamSerialBus:
     def __init__(
         self,
         port: str,
@@ -23,56 +27,69 @@ class ModbusHub:
     ) -> None:
         self.mock = mock
         self.retries = retries
-        self._client = None
-        if mock:
-            return
-        # 실 하드웨어에서만 pymodbus 를 import (개발 노트북에는 없어도 됨).
-        from pymodbus.client import ModbusSerialClient
-
-        self._client = ModbusSerialClient(
-            port=port,
-            baudrate=baudrate,
-            parity=parity,
-            stopbits=stopbits,
-            bytesize=bytesize,
-            timeout=timeout_ms / 1000.0,
-        )
+        self._port = port
+        self._baudrate = baudrate
+        self._parity = parity
+        self._stopbits = stopbits
+        self._bytesize = bytesize
+        self._timeout = timeout_ms / 1000.0
+        self._ser = None
 
     def connect(self) -> bool:
         if self.mock:
             return True
-        return bool(self._client.connect())
+        import serial  # 실 하드웨어에서만 pyserial import (개발 노트북엔 없어도 됨)
+
+        if self._ser is not None and self._ser.is_open:
+            return True
+        self._ser = serial.Serial(
+            port=self._port,
+            baudrate=self._baudrate,
+            bytesize=self._bytesize,
+            parity=self._parity,
+            stopbits=self._stopbits,
+            timeout=self._timeout,
+        )
+        return bool(self._ser.is_open)
 
     def close(self) -> None:
-        if not self.mock and self._client is not None:
-            self._client.close()
+        if not self.mock and self._ser is not None:
+            self._ser.close()
 
-    # --- 저수준 Modbus 액세스 (실 모드) -----------------------------------
-    # 주의: ADAM-4055-C / ADAM-4017+ 의 실제 레지스터 주소는 Advantech 매뉴얼로
-    # 확인해야 한다. 여기서는 표준 함수만 노출하고 주소는 각 모듈이 넘긴다.
-    def read_discrete_inputs(self, unit: int, address: int, count: int) -> list[bool]:
-        rr = self._client.read_discrete_inputs(address, count=count, device_id=unit)
-        if rr.isError():
-            raise ModbusError(f"read_discrete_inputs unit={unit} addr={address}: {rr}")
-        return list(rr.bits[:count])
+    # --- ASCII 명령 전송 --------------------------------------------------
+    def command(self, cmd: str, *, want_reply: bool = True) -> str:
+        """ADAM ASCII 명령을 보내고 응답(CR 제거)을 돌려준다.
 
-    def read_coils(self, unit: int, address: int, count: int) -> list[bool]:
-        rr = self._client.read_coils(address, count=count, device_id=unit)
-        if rr.isError():
-            raise ModbusError(f"read_coils unit={unit} addr={address}: {rr}")
-        return list(rr.bits[:count])
+        want_reply=True 인데 응답이 없으면 retries 만큼 재시도 후 AdamCommError.
+        """
+        if self._ser is None:
+            raise AdamCommError("serial not connected")
+        for _ in range(self.retries + 1):
+            self._ser.reset_input_buffer()
+            self._ser.write((cmd + "\r").encode("ascii"))
+            resp = self._read_until_cr()
+            if not want_reply or resp:
+                return resp
+        raise AdamCommError(f"no response to {cmd!r}")
 
-    def write_coils(self, unit: int, address: int, values: list[bool]) -> None:
-        rr = self._client.write_coils(address, list(values), device_id=unit)
-        if rr.isError():
-            raise ModbusError(f"write_coils unit={unit} addr={address}: {rr}")
+    def _read_until_cr(self) -> str:
+        buf = bytearray()
+        while True:
+            b = self._ser.read(1)
+            if not b:                 # 타임아웃
+                break
+            if b == b"\r":
+                break
+            buf += b
+        return buf.decode("ascii", errors="replace").strip()
 
-    def read_input_registers(self, unit: int, address: int, count: int) -> list[int]:
-        rr = self._client.read_input_registers(address, count=count, device_id=unit)
-        if rr.isError():
-            raise ModbusError(f"read_input_registers unit={unit} addr={address}: {rr}")
-        return list(rr.registers[:count])
+
+# 하위 호환 별칭 (구 코드/테스트가 ModbusHub 를 참조할 수 있음)
+ModbusHub = AdamSerialBus
 
 
-class ModbusError(RuntimeError):
-    """Modbus 통신 오류 (상위에서 ADAM_COMM_ERROR 알람으로 처리)."""
+class AdamCommError(RuntimeError):
+    """ADAM 시리얼 통신 오류 (상위에서 ADAM_COMM_ERROR 알람으로 처리)."""
+
+
+ModbusError = AdamCommError   # 하위 호환 별칭
