@@ -333,11 +333,12 @@ class Controller:
 
     def _run_move_down(self) -> None:
         self.out.valve_down = True
-        # 하중 상한 초과는 _run_state 상단에서 자동 전 단계 공통으로 처리한다.
-        if self.io.di(DI1.CYL_DOWN_POS):
+        # 하강 위치센서 도달 → 다웰. 단, 시스템 구성상 샘플 크기에 따라 하강 센서에 안
+        # 닿을 수 있으므로, 이동시간(down_timeout_ms)이 지나면 에러가 아니라 정상적으로
+        # 다웰로 넘어간다(센서 미도달 = 샘플에 눌려 멈춘 것). 과가압 보호는 _run_state
+        # 상단의 LOAD_OVER_LIMIT(하중 상한)이 담당한다.
+        if self.io.di(DI1.CYL_DOWN_POS) or self._deadline_passed():
             self._start_dwell(State.AUTO_DWELL_DOWN, self.settings.down_dwell_ms)
-        elif self._deadline_passed():
-            self._fault(Alarm.DOWN_TIMEOUT)
 
     def _run_dwell_down(self) -> None:
         if self._now >= self._t_dwell_end:

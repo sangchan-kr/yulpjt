@@ -324,22 +324,29 @@ def test_load_over_limit_during_up_phase():
     assert Alarm.LOAD_OVER_LIMIT in ctrl.alarms
 
 
-def test_auto_down_timeout():
-    ctrl, a1, a2, ai, clk = _build(down_timeout_ms=200)
+def test_auto_down_no_sensor_proceeds_no_error():
+    """자동 하강: 샘플 크기로 하강센서 미도달이어도 에러 없이 이동시간 후 다웰로 진행.
+
+    (시스템 구성상 하강 센서가 동작 안 할 수 있음 — 타임아웃을 폴트로 처리하면 안 됨.
+    과가압은 LOAD_OVER_LIMIT 이 보호.)
+    """
+    ctrl, a1, a2, ai, clk = _build(down_timeout_ms=200, down_dwell_ms=50, up_dwell_ms=20)
     _di(a1, DI1.SOL_ENABLE_OK, True)
     _di(a1, DI1.MODE_AUTO, True)
     ctrl.scan()
     _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
-    for _ in range(50):
+    reached_dwell = False
+    for _ in range(100):
         clk.advance(0.03); ctrl.scan()
+        # 하강 위치센서는 절대 주지 않음(샘플에 막힘). 상승만 정상 도달시켜 사이클 진행.
+        _di(a1, DI1.CYL_UP_POS, bool(ctrl.out.valve_up))
+        if ctrl.state is State.AUTO_DWELL_DOWN:
+            reached_dwell = True
         if ctrl.state is State.ERROR:
             break
-    assert ctrl.state is State.ERROR
-    assert Alarm.DOWN_TIMEOUT in ctrl.alarms
-    ctrl.cmd_alarm_clear()
-    ctrl.scan()
-    assert ctrl.state is State.AUTO_IDLE
-    assert not ctrl.alarms
+    assert reached_dwell                        # 하강센서 없이도 다웰로 진행
+    assert ctrl.state is not State.ERROR
+    assert Alarm.DOWN_TIMEOUT not in ctrl.alarms
 
 
 def test_separate_up_timeout():
