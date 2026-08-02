@@ -82,7 +82,10 @@ class IO:
         self._m1 = adam1
         self._m2 = adam2
         self._ai = adam4017
-        self._invert = frozenset(input_invert)   # 반전할 DI 신호 집합
+        # 반전할 DI 신호를 (타입명, 채널) 키로 저장한다. DI1/DI2 는 IntEnum 이라 채널이
+        # 겹치면(예: MODE_AUTO=0, VACUUM_OK=0) 서로 == 로 판정돼, 단순 집합이면 한쪽만
+        # 반전 지정해도 다른 모듈 같은 채널이 함께 반전되는 버그가 있다(§7.2).
+        self._invert = {(type(s).__name__, int(s)) for s in input_invert}
         self._di1 = [False] * 8
         self._di2 = [False] * 8
         self._ma = [4.0] * 8
@@ -100,7 +103,7 @@ class IO:
             v = self._di2[int(sig)]
         else:
             raise TypeError(f"DI 신호가 아님: {sig!r}")
-        return (not v) if sig in self._invert else v
+        return (not v) if (type(sig).__name__, int(sig)) in self._invert else v
 
     def ma(self, sig) -> float:
         if not isinstance(sig, AI):

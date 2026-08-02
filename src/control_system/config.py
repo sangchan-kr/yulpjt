@@ -108,7 +108,7 @@ class Config:
     blowoff_hold_ms: int = 300          # 유지보수 시험: blow-off 최대 유지
 
     # --- 입력 논리 반전 (NPN 등, v1.12 §7.2) ------------------------------
-    invert_vacuum_ok: bool = True       # 진공 확인 센서(ZK2A NPN) 극성 반대 — 현장 확인
+    invert_vacuum_ok: bool = False      # 진공 확인 센서 — 원신호 사용(현장 확인: 반전 불필요)
     invert_mode_auto: bool = True       # AUTO/MANUAL 셀렉터 결선 반대 → MODE_AUTO 반전(현장 확인)
 
     # --- 유지보수 (관리자) -------------------------------------------------

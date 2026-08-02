@@ -29,6 +29,23 @@ def _build(mock_invert_vacuum=False):
     return cfg, a1, a2, ai, io
 
 
+def test_input_invert_channel_isolation():
+    """한 모듈 채널만 반전 지정해도 다른 모듈 같은 채널이 함께 반전되면 안 됨.
+
+    DI1/DI2 는 IntEnum 이라 채널이 겹치면(MODE_AUTO=0, VACUUM_OK=0) == 로 같게 판정된다.
+    (타입,채널) 키로 저장해 격리해야 한다.
+    """
+    a1 = Adam4055(None, 1, mock=True)
+    a2 = Adam4055(None, 2, mock=True)
+    ai = Adam4017(None, 3, mock=True)
+    io = IO(a1, a2, ai, input_invert={DI1.MODE_AUTO})   # DI1 ch0 만 반전
+    a1.set_mock_di(int(DI1.MODE_AUTO), True)
+    a2.set_mock_di(int(DI2.VACUUM_OK), True)
+    io.refresh_inputs()
+    assert io.di(DI1.MODE_AUTO) is False       # 반전됨
+    assert io.di(DI2.VACUUM_OK) is True        # 반전 안 됨(충돌 격리)
+
+
 def test_hub_reconnects_on_usb_dropout():
     """USB 재열거로 fd 가 죽으면(OSError) 포트를 재오픈하고 재시도해 복구한다."""
     from control_system.hardware.modbus_hub import AdamSerialBus
