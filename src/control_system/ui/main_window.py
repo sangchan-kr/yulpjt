@@ -311,7 +311,14 @@ class MainWindow(QMainWindow):
     def _collect_events(self) -> None:
         c = self.ctrl
         if c.state is not self._prev_state:
-            self.event_log.add("STATE", f"{self._prev_state.value} → {c.state.value}")
+            # 안전정지·오류 진입은 알람 카테고리로 기록(로그 '알람' 탭). 그 외는 일반 상태전환.
+            if c.state is State.SAFETY_STOP:
+                self.event_log.add("SAFETY", "안전 정지 발생")
+            elif c.state is State.ERROR:
+                causes = ", ".join(sorted(a.value for a in c.alarms)) or "-"
+                self.event_log.add("ERROR", f"오류 정지 ({causes})")
+            else:
+                self.event_log.add("STATE", f"{self._prev_state.value} → {c.state.value}")
             self._prev_state = c.state
         for a in c.alarms - self._prev_alarms:
             self.event_log.add("ALARM", a.value)

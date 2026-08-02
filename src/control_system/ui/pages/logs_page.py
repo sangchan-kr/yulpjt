@@ -11,11 +11,24 @@ from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
 
-# 이벤트 코드 분류: 알람 탭(문제/경고) vs 이벤트 탭(상태전환·조작).
-_ALARM_CODES = {"ALARM", "VACUUM_WARN"}
+# 이벤트 코드 분류: 알람 탭(문제/경고/안전정지/오류) vs 이벤트 탭(상태전환·조작).
+_ALARM_CODES = {"ALARM", "VACUUM_WARN", "SAFETY", "ERROR"}
 _EVENT_CODES = {"STATE", "VACUUM_COMMAND"}
-_CODE_KO = {"ALARM": "알람", "VACUUM_WARN": "진공경고",
-            "STATE": "상태전환", "VACUUM_COMMAND": "진공명령"}
+_CODE_KO = {"ALARM": "알람", "VACUUM_WARN": "진공경고", "SAFETY": "안전정지",
+            "ERROR": "오류정지", "STATE": "상태전환", "VACUUM_COMMAND": "진공명령"}
+
+# 알람 코드값 → 한글 상세 표기.
+_ALARM_KO = {
+    "VALVE_INTERLOCK": "밸브 인터록(상승/하강 동시 명령)",
+    "MANUAL_CONFLICT": "수동 상승/하강 동시 입력",
+    "DOWN_TIMEOUT": "하강 위치 미도달",
+    "UP_TIMEOUT": "상승 위치 미도달",
+    "LOAD_OVER_LIMIT": "하중 상한 초과",
+    "ADAM_COMM_ERROR": "통신 오류(USB/RS-485)",
+    "VACUUM_NOT_REACHED": "진공 미도달",
+    "VACUUM_SIGNAL_ABNORMAL": "진공 신호 이상",
+    "VACUUM_BLOWOFF_INTERLOCK": "진공/파기 동시",
+}
 
 
 class LogsPage(QWidget):
@@ -84,5 +97,5 @@ class LogsPage(QWidget):
             return empty
         lines = ["시각       종류        상세"]
         for ts, code, detail in items:
-            lines.append(f"{ts}   {_CODE_KO.get(code, code):<8} {detail}")
+            lines.append(f"{ts}   {_CODE_KO.get(code, code):<8} {_ALARM_KO.get(detail, detail)}")
         return "\n".join(lines)
