@@ -39,9 +39,10 @@ def _read_cpu_temp():
 
 def _box(title: str) -> tuple[QFrame, QLabel]:
     f = QFrame(); f.setObjectName("stat")
-    v = QVBoxLayout(f); v.setContentsMargins(11, 7, 11, 7); v.setSpacing(2)
-    t = QLabel(title); t.setObjectName("statLabel")
-    val = QLabel("-"); val.setObjectName("statValue")
+    v = QVBoxLayout(f); v.setContentsMargins(10, 5, 10, 5); v.setSpacing(1)
+    t = QLabel(title); t.setObjectName("statLabel"); t.setStyleSheet("font-size:12px;")
+    # 좁은 2열 박스라 값 폰트를 줄여 깨짐(넘침) 방지 (전역 statValue 19px 대신 16px).
+    val = QLabel("-"); val.setStyleSheet("color:#1b2735; font-weight:800; font-size:16px;")
     v.addWidget(t); v.addWidget(val)
     return f, val
 
@@ -70,20 +71,32 @@ class StatusPage(QWidget):
         lay = QVBoxLayout(card); lay.setContentsMargins(14, 12, 14, 12); lay.setSpacing(8)
         head = QLabel("제어기 및 통신"); head.setObjectName("cardTitle")
         lay.addWidget(head)
-        grid = QGridLayout(); grid.setHorizontalSpacing(10); grid.setVerticalSpacing(8)
+        grid = QGridLayout(); grid.setHorizontalSpacing(10); grid.setVerticalSpacing(7)
         self._b = {}
         specs = [
             ("app", "제어 프로그램"), ("uptime", "연속 실행시간"),
             ("cpu", "CPU 온도"), ("storage", "저장공간 여유"),
-            ("adam1", "입출력 모듈 1"), ("adam2", "입출력 모듈 2"),
-            ("adam3", "하중 입력 모듈"), ("poll", "폴링 / 재시도"),
-            ("mA", "로드셀 원신호"), ("vok", "진공 확인"),
+            ("poll", "폴링 / 재시도"), ("mA", "로드셀 원신호"),
+            ("vok", "진공 확인"),
         ]
         for i, (k, label) in enumerate(specs):
             f, val = _box(label)
             self._b[k] = val
             grid.addWidget(f, i // 2, i % 2)
         lay.addLayout(grid)
+
+        # 입출력 모듈 3개 연결 상태를 신호등 램프로 한 줄에 (박스 3개 절약).
+        modrow = QHBoxLayout(); modrow.setSpacing(12)
+        cap = QLabel("모듈 연결"); cap.setObjectName("statLabel"); cap.setStyleSheet("font-size:13px;")
+        modrow.addWidget(cap)
+        self._mod_lamps = {}
+        for key, name in (("m1", "입출력1"), ("m2", "입출력2"), ("ai", "아날로그")):
+            dot = QLabel("●"); dot.setStyleSheet("color:#c8d0da; font-size:16px;")
+            txt = QLabel(name); txt.setStyleSheet("font-size:13px; font-weight:700; color:#3a4a5c;")
+            self._mod_lamps[key] = dot
+            modrow.addWidget(dot); modrow.addWidget(txt)
+        modrow.addStretch(1)
+        lay.addLayout(modrow)
 
         head2 = QLabel("진공 출력 허가"); head2.setObjectName("cardTitle")
         lay.addWidget(head2)
@@ -116,6 +129,21 @@ class StatusPage(QWidget):
         lay.addWidget(self._io_host, 1)
         self._io_rows = []          # [(w, ...)] 재사용 위젯
         self._io_headers = []
+
+        # 아날로그 탭 전용: A0-A1 / A2-A3 … 페어 박스. A0~3 전류(mA), A4~7 전압(V).
+        self._ai_grid = QGridLayout()
+        self._ai_grid.setHorizontalSpacing(10); self._ai_grid.setVerticalSpacing(8)
+        self._ai_host = QWidget(); self._ai_host.setLayout(self._ai_grid)
+        self._ai_boxes = []
+        for i in range(8):
+            title = "A0 로드셀(전류)" if i == 0 else f"A{i} {'전류' if i < 4 else '전압'}"
+            f, val = _box(title)
+            self._ai_boxes.append(val)
+            self._ai_grid.addWidget(f, i // 2, i % 2)
+        self._ai_grid.setColumnStretch(0, 1); self._ai_grid.setColumnStretch(1, 1)
+        self._ai_grid.setRowStretch(4, 1)
+        lay.addWidget(self._ai_host, 1)
+        self._ai_host.hide()
         return card
 
     def _set_tab(self, idx: int) -> None:
@@ -135,10 +163,9 @@ class StatusPage(QWidget):
         except OSError:
             self._b["storage"].setText("-")
         self._b["poll"].setText(f"{c.cfg.poll_ms} ms / {c.cfg.retries}")
-        conn = "연결됨" if c.adam2_connected else "끊김"
-        self._b["adam1"].setText(conn)
-        self._b["adam2"].setText(conn)
-        self._b["adam3"].setText(conn)
+        lamp = theme.GREEN if c.adam2_connected else theme.RED
+        for dot in self._mod_lamps.values():
+            dot.setStyleSheet(f"color:{lamp}; font-size:16px;")
         self._b["mA"].setText(f"{c.io.ma(AI.LOADCELL_CURRENT):.2f} mA")
         self._b["vok"].setText("정상" if c.vacuum_ok else "꺼짐")
 
@@ -162,11 +189,16 @@ class StatusPage(QWidget):
         # (공유 RS-485 노이즈/글리치 최소화).
         io = self.ctrl.io
         if self._tab == 2:
+            # 아날로그: 페어 박스. A0~3 전류(mA), A4~7 전압(V = mA_환산 × 0.12).
+            self._io_host.hide(); self._ai_host.show()
             ma = io.ma_snapshot()
-            headers = ["채널", "신호", "전류"]
-            rows = [[f"AI-{i:02d}", _AI_KO[i], f"{ma[i]:.2f} mA"] for i in range(8)]
-            self._render_grid(headers, rows, states=None)
+            for i in range(8):
+                if i < 4:
+                    self._ai_boxes[i].setText(f"{ma[i]:.2f} mA")
+                else:
+                    self._ai_boxes[i].setText(f"{ma[i] * 0.12:.3f} V")
             return
+        self._ai_host.hide(); self._io_host.show()
         if self._tab == 0:
             di, do, di_ko, do_ko = io.di_snapshot(1), self.a1.cached_do(), _DI1_KO, _DO1_KO
         else:

@@ -58,8 +58,12 @@ class SettingsPage(QWidget):
 
         body = QHBoxLayout()
         body.setSpacing(12)
+        # 왼쪽(반복 가압): 항목이 많아 세로로 꽉 채운다. 오른쪽(하중/표시): 내용만큼만(짧게).
         body.addWidget(self._group_card("반복 가압 조건", _LEFT), 1)
-        body.addWidget(self._group_card("하중 및 표시 조건", _RIGHT), 1)
+        right_col = QVBoxLayout()
+        right_col.addWidget(self._group_card("하중 및 표시 조건", _RIGHT))
+        right_col.addStretch(1)
+        body.addLayout(right_col, 1)
         root.addLayout(body, 1)
 
         bottom = QHBoxLayout()
