@@ -42,14 +42,18 @@ class AdamSerialBus:
 
         if self._ser is not None and self._ser.is_open:
             return True
-        self._ser = serial.Serial(
-            port=self._port,
-            baudrate=self._baudrate,
-            bytesize=self._bytesize,
-            parity=self._parity,
-            stopbits=self._stopbits,
-            timeout=self._timeout,
-        )
+        if "://" in self._port:
+            # 원격 시리얼(예: socket://IP:PORT) — 파이 TCP↔시리얼 브리지 경유 테스트용.
+            self._ser = serial.serial_for_url(self._port, timeout=self._timeout)
+        else:
+            self._ser = serial.Serial(
+                port=self._port,
+                baudrate=self._baudrate,
+                bytesize=self._bytesize,
+                parity=self._parity,
+                stopbits=self._stopbits,
+                timeout=self._timeout,
+            )
         return bool(self._ser.is_open)
 
     def close(self) -> None:

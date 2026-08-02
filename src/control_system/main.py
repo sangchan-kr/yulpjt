@@ -17,10 +17,29 @@ SETTINGS_PATH = "settings.json"
 RUN_LOG_PATH = "data/run_log.csv"
 
 
+def _resolve_serial_port(cfg: Config) -> str:
+    """실 시리얼 포트 자동 탐색. USB 재열거로 ttyUSB0↔1 이 바뀌어도 안정적으로 찾는다.
+
+    우선순위: CP210x by-id(고정) → 지정 경로 → ttyUSB*. (socket:// URL 은 그대로 둔다.)
+    """
+    port = cfg.serial_port
+    if cfg.mock_hardware or "://" in port:
+        return port
+    import glob
+    import os
+    byid = sorted(glob.glob("/dev/serial/by-id/*CP210*")) or sorted(glob.glob("/dev/serial/by-id/*ADAM*"))
+    if byid:
+        return byid[0]
+    if os.path.exists(port):
+        return port
+    tty = sorted(glob.glob("/dev/ttyUSB*"))
+    return tty[0] if tty else port
+
+
 def build_io_stack(cfg: Config):
-    """config 에 따라 Modbus 허브 + ADAM 모듈 + IO 파사드 + 로드셀을 조립한다."""
+    """config 에 따라 시리얼 허브 + ADAM 모듈 + IO 파사드 + 로드셀을 조립한다."""
     hub = ModbusHub(
-        cfg.serial_port,
+        _resolve_serial_port(cfg),
         cfg.baudrate,
         parity=cfg.parity,
         stopbits=cfg.stopbits,
