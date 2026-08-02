@@ -101,6 +101,23 @@ class MainPage(QWidget):
         row.addWidget(f1)
         row.addWidget(f2)
         lay.addLayout(row)
+
+        # 조작 버튼(오른쪽 하중 카드에서 이동 — 하중 표시 세로 공간 확보)
+        actions = QHBoxLayout()
+        actions.setSpacing(8)
+        self._btn_reset = QPushButton("안전 복귀")
+        self._btn_reset.setObjectName("danger")
+        self._btn_reset.clicked.connect(self.ctrl.cmd_safety_reset)
+        b_clear = QPushButton("알람 해제")
+        b_clear.clicked.connect(self.ctrl.cmd_alarm_clear)
+        b_count = QPushButton("횟수 초기화")
+        b_count.clicked.connect(self.ctrl.cmd_count_reset)
+        b_zero = QPushButton("하중 영점")
+        b_zero.clicked.connect(self.ctrl.cmd_load_zero)
+        for b in (self._btn_reset, b_clear, b_count, b_zero):
+            b.setMinimumHeight(46)
+            actions.addWidget(b)
+        lay.addLayout(actions)
         return frame
 
     # ---------------------------------------------------------------- 우: 현재 하중
@@ -165,22 +182,6 @@ class MainPage(QWidget):
         self._vac_warn = QLabel("")
         self._vac_warn.setStyleSheet(f"color:{theme.YELLOW}; font-weight:700;")
         lay.addWidget(self._vac_warn)
-
-        actions = QHBoxLayout()
-        actions.setSpacing(8)
-        self._btn_reset = QPushButton("안전 복귀")
-        self._btn_reset.setObjectName("danger")
-        self._btn_reset.clicked.connect(self.ctrl.cmd_safety_reset)
-        b_clear = QPushButton("알람 해제")
-        b_clear.clicked.connect(self.ctrl.cmd_alarm_clear)
-        b_count = QPushButton("횟수 초기화")
-        b_count.clicked.connect(self.ctrl.cmd_count_reset)
-        b_zero = QPushButton("하중 영점")
-        b_zero.clicked.connect(self.ctrl.cmd_load_zero)
-        for b in (self._btn_reset, b_clear, b_count, b_zero):
-            b.setMinimumHeight(44)
-            actions.addWidget(b)
-        lay.addLayout(actions)
         return frame
 
     # ---------------------------------------------------------------- 갱신
