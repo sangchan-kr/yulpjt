@@ -475,18 +475,23 @@ def test_vacuum_on_rejected_when_sol_off():
     assert ctrl.out.vacuum_on is False
 
 
-def test_vacuum_signal_abnormal_warning():
+def test_vacuum_sensor_ignored_when_not_commanded():
+    """진공 미명령 시 센서가 ON 이어도 시스템은 완전히 무시 — 이상경고 없음, 상태 OFF.
+
+    (진공은 수동 전용이며 시스템 동작과 무관해야 한다. 센서가 NPN 등으로 반대로 읽혀도
+    자동 운전에 끼어들거나 화면에 '진공 잔압/이상'을 띄우지 않는다.)
+    """
     ctrl, a1, a2, ai, clk = _build(vacuum_residual_ms=150)
     _di(a1, DI1.SOL_ENABLE_OK, True)
     _di(a1, DI1.MODE_AUTO, False)
     ctrl.scan()
-    _di(a2, DI2.VACUUM_OK, True)                # 명령 OFF 인데 OK 지속
+    _di(a2, DI2.VACUUM_OK, True)                # 명령 OFF 인데 센서 ON 지속
     for _ in range(20):
         clk.advance(0.03); ctrl.scan()
-        if Alarm.VACUUM_SIGNAL_ABNORMAL in ctrl.vacuum_warnings:
-            break
-    assert Alarm.VACUUM_SIGNAL_ABNORMAL in ctrl.vacuum_warnings
-    assert not ctrl.alarms                     # 논블로킹
+    assert Alarm.VACUUM_SIGNAL_ABNORMAL not in ctrl.vacuum_warnings
+    assert not ctrl.alarms
+    assert ctrl.vacuum_status() == "OFF"       # 센서 무시하고 OFF
+    assert ctrl.out.vacuum_on is False
 
 
 def test_maintenance_blowoff_hold():

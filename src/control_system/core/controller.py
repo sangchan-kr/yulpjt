@@ -142,10 +142,13 @@ class Controller:
         }.get(self.state, 0)
 
     def vacuum_status(self) -> str:
-        """진공 4상태: OFF / BUILDING / OK / RESIDUAL."""
+        """진공 상태: OFF / BUILDING / OK. 수동 명령이 없으면 센서 무시하고 항상 OFF.
+
+        (진공은 수동 전용이며 시스템 동작과 무관 — 명령하지 않은 진공 센서 상태는 표시하지 않음.)
+        """
         if self.vacuum_command:
             return "OK" if self.vacuum_ok else "BUILDING"
-        return "RESIDUAL" if self.vacuum_ok else "OFF"
+        return "OFF"
 
     def vacuum_permission(self):
         """(allowed, reason). 진공 ON 허용조건 (HMI handoff §6.1)."""
@@ -379,15 +382,11 @@ class Controller:
             self.vacuum_warnings.discard(Alarm.VACUUM_NOT_REACHED)
             self._t_vac_deadline = None
 
-        # 잔류/이상 신호 감시 (VACUUM_SIGNAL_ABNORMAL, 논블로킹 경고)
-        if not self.vacuum_command and self.vacuum_ok:
-            if self._t_residual is None:
-                self._t_residual = self._now + self.cfg.vacuum_residual_ms / 1000.0
-            elif self._now >= self._t_residual:
-                self.vacuum_warnings.add(Alarm.VACUUM_SIGNAL_ABNORMAL)
-        else:
-            self._t_residual = None
-            self.vacuum_warnings.discard(Alarm.VACUUM_SIGNAL_ABNORMAL)
+        # 진공은 수동 전용 · 시스템과 완전 분리: 수동 명령이 없으면 진공 센서를 감시하지
+        # 않는다. 명령 OFF 이면 센서(진공 확인) 상태와 무관하게 잔류/이상 경고를 내지 않는다.
+        # (센서가 NPN 등으로 반대로 읽혀도 자동 운전에 절대 끼어들지 않게.)
+        self._t_residual = None
+        self.vacuum_warnings.discard(Alarm.VACUUM_SIGNAL_ABNORMAL)
 
         # 유지보수 blow-off (hold-to-run). 자동/메인에서는 절대 켜지지 않음.
         self._run_maint_blowoff()
