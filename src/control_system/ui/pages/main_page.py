@@ -20,7 +20,8 @@ _STAGE_KO = {
     State.AUTO_MOVE_DOWN: "하강 중", State.AUTO_DWELL_DOWN: "가압 유지 중",
     State.AUTO_MOVE_UP: "상승 중", State.AUTO_DWELL_UP: "상승 유지",
     State.AUTO_COUNT_UPDATE: "카운트", State.AUTO_COMPLETE: "운전 완료",
-    State.MANUAL_IDLE: "수동 대기", State.SAFETY_STOP: "안전 정지", State.ERROR: "오류",
+    State.MANUAL_IDLE: "수동 대기", State.MANUAL_MOVE_UP: "교체 위치 이동 중",
+    State.SAFETY_STOP: "안전 정지", State.ERROR: "오류",
 }
 
 
@@ -101,6 +102,13 @@ class MainPage(QWidget):
         row.addWidget(f1)
         row.addWidget(f2)
         lay.addLayout(row)
+
+        # 교체 위치: 실린더를 상승 센서까지 올려 시료 교체를 쉽게 (수동 대기에서만)
+        self._btn_exchange = QPushButton("교체 위치")
+        self._btn_exchange.setObjectName("primary")
+        self._btn_exchange.setMinimumHeight(46)
+        self._btn_exchange.clicked.connect(self.ctrl.cmd_exchange_position)
+        lay.addWidget(self._btn_exchange)
 
         # 조작 버튼(오른쪽 하중 카드에서 이동 — 하중 표시 세로 공간 확보)
         actions = QHBoxLayout()
@@ -230,4 +238,11 @@ class MainPage(QWidget):
         self._vac_warn.setText(f"⚠ {warns}" if warns else "")
 
         self._btn_reset.setEnabled(c.state is State.SAFETY_STOP and c.sol_enable_ok)
+        # 교체 위치: 수동 대기 + 구동 허가일 때만 시작 가능. 이동 중엔 표시만.
+        if c.state is State.MANUAL_MOVE_UP:
+            self._btn_exchange.setEnabled(False)
+            self._btn_exchange.setText("교체 위치 이동 중…")
+        else:
+            self._btn_exchange.setEnabled(c.state is State.MANUAL_IDLE and c.sol_enable_ok)
+            self._btn_exchange.setText("교체 위치")
         self._trend_w.update()

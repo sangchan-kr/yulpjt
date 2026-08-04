@@ -1,14 +1,19 @@
 """운전 조건 설정 페이지 (목업 v0.4 / handoff §10).
 
 좌: 반복 가압 조건, 우: 하중 및 표시 조건 (2카드). 값 칸을 누르면 터치 키패드로
-편집(대기 값에 저장). 불리언(데이터 저장)은 누르면 사용/미사용 토글.
-저장은 Idle 상태에서만 허용. 취소=되돌리기, 기본값=Config 기본값.
+편집(대기 값 _pending 에만 저장). 편집만으로는 운전에 반영되지 않는다.
+
+버튼:
+  적용 — 편집값을 현재 운전에 반영(+ settings.json 영속). 이걸 눌러야 반영된다.
+  저장 — 슬롯(1~3)을 골라 현재 편집값을 레시피로 저장.
+  레시피 1/2/3 — 확인 후 그 레시피를 불러와 즉시 적용.
+모두 대기(Idle) 상태에서만 동작.
 """
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
-    QWidget,
+    QCheckBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QPushButton, QVBoxLayout, QWidget,
 )
 
 from ...config import RuntimeSettings
@@ -42,25 +47,38 @@ _INPUT_QSS = ("background:#ffffff; border:1px solid #cfd8e2; border-radius:8px;"
 
 
 class SettingsPage(QWidget):
-    def __init__(self, controller, settings_path: str, cfg) -> None:
+    def __init__(self, controller, settings_path: str, cfg, recipes=None) -> None:
         super().__init__()
         self.ctrl = controller
         self.settings_path = settings_path
         self.cfg = cfg
+        self.recipes = recipes
         self._pending = dict(self._snapshot())
         self._value_labels: dict[str, QLabel] = {}
         self._bool_boxes: dict[str, QCheckBox] = {}
+        self._recipe_btns: list[QPushButton] = []
 
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 10, 14, 10)
         root.setSpacing(8)
+
+        title_row = QHBoxLayout()
         title = QLabel("운전 조건 설정")
         title.setObjectName("pageTitle")
-        root.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        if self.recipes is not None:
+            title_row.addWidget(QLabel("레시피"))
+            for i in range(self.recipes.N):
+                b = QPushButton(f"레시피 {i + 1}")
+                b.setMinimumHeight(40); b.setMinimumWidth(120)
+                b.clicked.connect(lambda _=False, idx=i: self._load_recipe(idx))
+                self._recipe_btns.append(b)
+                title_row.addWidget(b)
+        root.addLayout(title_row)
 
         body = QHBoxLayout()
         body.setSpacing(12)
-        # 왼쪽(반복 가압): 항목이 많아 세로로 꽉 채운다. 오른쪽(하중/표시): 내용만큼만(짧게).
         body.addWidget(self._group_card("반복 가압 조건", _LEFT), 1)
         right_col = QVBoxLayout()
         right_col.addWidget(self._group_card("하중 및 표시 조건", _RIGHT))
@@ -75,9 +93,11 @@ class SettingsPage(QWidget):
         bottom.addStretch(1)
         self._b_default = QPushButton("기본값"); self._b_default.clicked.connect(self._restore_default)
         self._b_cancel = QPushButton("취소"); self._b_cancel.clicked.connect(self._cancel)
+        self._b_apply = QPushButton("적용"); self._b_apply.setObjectName("primary")
+        self._b_apply.clicked.connect(self._apply)
         self._b_save = QPushButton("저장"); self._b_save.setObjectName("navBtn"); self._b_save.setCheckable(False)
-        self._b_save.clicked.connect(self._save)
-        for b in (self._b_default, self._b_cancel, self._b_save):
+        self._b_save.clicked.connect(self._save_recipe)
+        for b in (self._b_default, self._b_cancel, self._b_apply, self._b_save):
             b.setMinimumHeight(42); b.setMinimumWidth(84)
             bottom.addWidget(b)
         root.addLayout(bottom)
@@ -116,6 +136,7 @@ class SettingsPage(QWidget):
         lay.addStretch(1)
         return card
 
+    # ------------------------------------------------------------ 값 편집
     def _snapshot(self) -> dict:
         s = self.ctrl.settings
         return {a: getattr(s, a) for a, *_ in _FIELDS}
@@ -143,7 +164,7 @@ class SettingsPage(QWidget):
             cb.blockSignals(False)
 
     def _set_bool(self, attr: str, on: bool) -> None:
-        if not self._is_idle():                 # 대기 상태에서만 변경 — 아니면 되돌림
+        if not self._is_idle():
             cb = self._bool_boxes[attr]
             cb.blockSignals(True); cb.setChecked(bool(self._pending[attr])); cb.blockSignals(False)
             return
@@ -173,27 +194,114 @@ class SettingsPage(QWidget):
         d = RuntimeSettings.from_config(self.cfg)
         self._pending = {a: getattr(d, a) for a, *_ in _FIELDS}
         self._refresh_labels()
+        self._note.setText("기본값을 불러왔습니다. ‘적용’을 눌러야 반영됩니다.")
 
     def _cancel(self) -> None:
         self._pending = dict(self._snapshot())
         self._refresh_labels()
+        self._note.setText("현재 운전값으로 되돌렸습니다.")
 
-    def _save(self) -> None:
+    # ------------------------------------------------------------ 적용 / 저장
+    def _apply(self) -> None:
+        """편집값을 현재 운전에 반영(+영속). 이 버튼을 눌러야 반영된다."""
         if not self._is_idle():
             return
         for attr, val in self._pending.items():
             setattr(self.ctrl.settings, attr, val)
         self.ctrl.settings.save(self.settings_path)
-        self._note.setText("저장되었습니다.")
+        self._note.setText("적용되었습니다. (현재 운전 조건에 반영)")
+
+    def _save_recipe(self) -> None:
+        """현재 편집값을 레시피 슬롯(1~3)에 저장."""
+        if not self._is_idle() or self.recipes is None:
+            return
+        i = self._pick_slot()
+        if i is None:
+            return
+        self.recipes.put(i, self._pending)
+        self._refresh_recipe_btns()
+        self._note.setText(f"레시피 {i + 1}에 저장했습니다.")
+
+    def _load_recipe(self, i: int) -> None:
+        """불러올 값을 미리보기로 보여주고, ‘예’를 누르면 불러와 즉시 적용."""
+        if not self._is_idle() or self.recipes is None:
+            return
+        if not self.recipes.is_set(i):
+            self._note.setText(f"레시피 {i + 1}은(는) 비어 있습니다.")
+            return
+        data = self.recipes.get(i)
+        if not self._confirm_load(i, data):     # 미리보기 다이얼로그에서 ‘예’
+            return
+        for attr, *_ in _FIELDS:
+            if attr in data:
+                self._pending[attr] = data[attr]
+        self._refresh_labels()
+        self._apply()                           # 불러오기 → 즉시 적용
+        self._note.setText(f"레시피 {i + 1}을(를) 불러와 적용했습니다.")
+
+    def _confirm_load(self, i: int, data: dict) -> bool:
+        """레시피 값 미리보기 + 예/아니오. 예면 True."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"레시피 {i + 1} 불러오기")
+        dlg.setStyleSheet(theme.QSS + "QDialog{background:#eef2f7;}")
+        v = QVBoxLayout(dlg)
+        v.addWidget(QLabel(f"레시피 {i + 1} 값을 불러와 지금 운전 조건에 적용할까요?"))
+        card = QFrame(); card.setObjectName("card")
+        g = QGridLayout(card); g.setVerticalSpacing(6); g.setHorizontalSpacing(10)
+        r = 0
+        for attr, label, unit, _k, _m in _FIELDS:
+            if attr not in data:
+                continue
+            g.addWidget(QLabel(label), r, 0)
+            val = QLabel(self._fmt(attr, data[attr]))
+            val.setStyleSheet("font-weight:900; color:#1b2735;")
+            val.setAlignment(Qt.AlignmentFlag.AlignRight)
+            g.addWidget(val, r, 1)
+            g.addWidget(QLabel(unit), r, 2)
+            r += 1
+        g.setColumnStretch(1, 1)
+        v.addWidget(card)
+        row = QHBoxLayout(); row.addStretch(1)
+        no = QPushButton("아니오"); no.setMinimumSize(110, 44); no.clicked.connect(dlg.reject)
+        yes = QPushButton("예"); yes.setObjectName("primary"); yes.setMinimumSize(110, 44)
+        yes.clicked.connect(dlg.accept)
+        row.addWidget(no); row.addSpacing(10); row.addWidget(yes)
+        v.addLayout(row)
+        return dlg.exec() == QDialog.DialogCode.Accepted
+
+    def _pick_slot(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("레시피 저장 위치")
+        dlg.setStyleSheet(theme.QSS + "QDialog{background:#eef2f7;}")
+        v = QVBoxLayout(dlg)
+        v.addWidget(QLabel("저장할 레시피 번호를 선택하세요"))
+        chosen = {"i": None}
+        for i in range(self.recipes.N):
+            state = "사용중" if self.recipes.is_set(i) else "빈 슬롯"
+            b = QPushButton(f"레시피 {i + 1}   ({state})")
+            b.setMinimumHeight(48)
+            b.clicked.connect(lambda _=False, idx=i: (chosen.__setitem__("i", idx), dlg.accept()))
+            v.addWidget(b)
+        c = QPushButton("취소"); c.clicked.connect(dlg.reject)
+        v.addWidget(c)
+        dlg.exec()
+        return chosen["i"]
+
+    def _refresh_recipe_btns(self) -> None:
+        if self.recipes is None:
+            return
+        for i, b in enumerate(self._recipe_btns):
+            b.setText(f"레시피 {i + 1}" if self.recipes.is_set(i) else f"레시피 {i + 1} (빈)")
 
     def _is_idle(self) -> bool:
         return self.ctrl.state in _IDLE
 
     def update_view(self) -> None:
         idle = self._is_idle()
-        for b in (self._b_default, self._b_cancel, self._b_save):
+        for b in (self._b_default, self._b_cancel, self._b_apply, self._b_save, *self._recipe_btns):
             b.setEnabled(idle)
         if not idle:
             self._note.setText("설정은 대기 상태에서만 변경할 수 있습니다.")
         elif self._note.text().startswith("설정은"):
             self._note.setText("")
+        self._refresh_recipe_btns()

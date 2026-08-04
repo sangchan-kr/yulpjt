@@ -6,7 +6,7 @@ from os import environ
 
 from PySide6.QtWidgets import QApplication
 
-from .config import Config, RuntimeSettings
+from .config import Config, RecipeStore, RuntimeSettings
 from .core.controller import Controller
 from .hardware.adam4017 import Adam4017
 from .hardware.adam4055 import Adam4055
@@ -17,6 +17,7 @@ from .ui.logging_csv import CsvLogger, EventLog
 from .ui.main_window import MainWindow
 
 SETTINGS_PATH = "settings.json"
+RECIPES_PATH = "recipes.json"
 RUN_LOG_PATH = "data/run_log.csv"
 APP_LOG_PATH = "data/app.log"
 
@@ -94,11 +95,13 @@ def main() -> int:
 
     hub, a1, a2, ai, io, loadcell = build_io_stack(cfg)
     settings = RuntimeSettings.load(SETTINGS_PATH, cfg)   # 재부팅 시 파라미터만 복원
+    recipes = RecipeStore.load(RECIPES_PATH)              # 운전 조건 레시피 3슬롯
     controller = Controller(cfg, io, loadcell, settings=settings)
     logger = CsvLogger(RUN_LOG_PATH)
     events = EventLog()
     window = MainWindow(cfg, controller, a1, a2, ai, logger,
-                        settings_path=SETTINGS_PATH, event_log=events, hub=hub)
+                        settings_path=SETTINGS_PATH, event_log=events, hub=hub,
+                        recipes=recipes)
 
     # KIOSK=1 이면 mock 이라도 전체화면(장비/파이 터치스크린용, 트레이·타이틀바 덮음).
     kiosk = environ.get("KIOSK", "0") == "1"

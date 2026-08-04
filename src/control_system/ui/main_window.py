@@ -39,12 +39,13 @@ _AUTO_RUNNING = {
 class MainWindow(QMainWindow):
     def __init__(self, cfg: Config, controller: Controller, adam1, adam2, adam4017,
                  logger: CsvLogger, settings_path: str = "settings.json",
-                 event_log: EventLog | None = None, hub=None) -> None:
+                 event_log: EventLog | None = None, hub=None, recipes=None) -> None:
         super().__init__()
         self.cfg = cfg
         self.ctrl = controller
         self.logger = logger
         self.hub = hub
+        self.recipes = recipes
         self.settings_path = settings_path
         self.event_log = event_log if event_log is not None else EventLog()
         self._start = time.monotonic()
@@ -148,7 +149,7 @@ class MainWindow(QMainWindow):
         self._main_page = MainPage(self.ctrl, self._trend)
         self._pages = [
             ("운전", self._main_page),
-            ("조건설정", SettingsPage(self.ctrl, self.settings_path, self.cfg)),
+            ("조건설정", SettingsPage(self.ctrl, self.settings_path, self.cfg, self.recipes)),
             ("시스템상태", StatusPage(self.ctrl, a1, a2, ai, self._start)),
             ("로그", LogsPage(self.logger.path, self.event_log)),
             ("도움말", HelpPage()),

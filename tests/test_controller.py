@@ -603,6 +603,47 @@ def test_do_override_ignored_when_auto_running():
     assert ("DO1", int(DO1.LAMP_AUTO_START)) in ctrl._do_override
 
 
+# ---------------------------------------------------------------- 교체 위치 (F2)
+def test_exchange_position_moves_up_to_sensor():
+    ctrl, a1, a2, ai, clk = _build(up_timeout_ms=1000)
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, False)
+    ctrl.scan()                                # MANUAL_IDLE
+    ctrl.cmd_exchange_position()
+    ctrl.scan()
+    assert ctrl.state is State.MANUAL_MOVE_UP
+    clk.advance(0.03); ctrl.scan()
+    assert ctrl.out.valve_up is True           # 상승 센서 전까지 상승
+    _di(a1, DI1.CYL_UP_POS, True)              # 상승 센서 도달
+    clk.advance(0.03); ctrl.scan()
+    assert ctrl.state is State.MANUAL_IDLE
+    assert ctrl.out.valve_up is False
+
+
+def test_exchange_position_timeout():
+    ctrl, a1, a2, ai, clk = _build(up_timeout_ms=100)
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, False)
+    ctrl.scan()
+    ctrl.cmd_exchange_position(); ctrl.scan()
+    for _ in range(20):
+        clk.advance(0.03); ctrl.scan()
+        if ctrl.state is State.ERROR:
+            break
+    assert ctrl.state is State.ERROR
+    assert Alarm.UP_TIMEOUT in ctrl.alarms
+
+
+def test_exchange_ignored_in_auto():
+    ctrl, a1, a2, ai, clk = _build()
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, True)
+    ctrl.scan()                                # AUTO_IDLE
+    ctrl.cmd_exchange_position()
+    ctrl.scan()
+    assert ctrl.state is State.AUTO_IDLE       # 자동에서는 무시
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

@@ -201,6 +201,56 @@ class RuntimeSettings:
             json.dump(data, f, indent=2)
 
 
+@dataclass
+class RecipeStore:
+    """운전 조건 레시피 3슬롯 (recipes.json 영속).
+
+    각 슬롯은 RuntimeSettings 의 편집 가능 필드 dict 이거나 비어있으면 None.
+    조건설정 화면에서 '저장'으로 슬롯에 넣고, '레시피 N'으로 편집창에 불러온다.
+    """
+    N = 3
+
+    def __init__(self, path: str, slots=None) -> None:
+        self.path = path
+        self.slots = list(slots) if slots else [None] * self.N
+        # 길이 보정
+        self.slots = (self.slots + [None] * self.N)[: self.N]
+
+    @classmethod
+    def load(cls, path: str) -> "RecipeStore":
+        import json
+        import os
+        slots = [None] * cls.N
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                raw = data.get("slots", []) if isinstance(data, dict) else []
+                for i in range(cls.N):
+                    if i < len(raw) and isinstance(raw[i], dict):
+                        slots[i] = raw[i]
+            except (OSError, ValueError):
+                pass
+        return cls(path, slots)
+
+    def save(self) -> None:
+        import json
+        import os
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"slots": self.slots}, f, indent=2)
+
+    def is_set(self, i: int) -> bool:
+        return 0 <= i < self.N and self.slots[i] is not None
+
+    def get(self, i: int):
+        return self.slots[i] if self.is_set(i) else None
+
+    def put(self, i: int, values: dict) -> None:
+        self.slots[i] = {k: values[k] for k in RuntimeSettings._EDITABLE if k in values}
+        self.save()
+
+
 def print_help() -> None:
     print(AMP_GAIN_HELP)
 

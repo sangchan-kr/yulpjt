@@ -19,6 +19,7 @@ class State(Enum):
     AUTO_COUNT_UPDATE = "AUTO_COUNT_UPDATE"
     AUTO_COMPLETE = "AUTO_COMPLETE"
     MANUAL_IDLE = "MANUAL_IDLE"
+    MANUAL_MOVE_UP = "MANUAL_MOVE_UP"    # 교체 위치: 상승 센서 닿을 때까지 이동
     SAFETY_STOP = "SAFETY_STOP"
     ERROR = "ERROR"
 

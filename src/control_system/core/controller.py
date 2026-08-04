@@ -79,6 +79,7 @@ class Controller:
         self._cmd_alarm_clear = False
         self._cmd_count_reset = False
         self._cmd_load_zero = False
+        self._cmd_exchange = False              # 교체 위치(상승 끝까지) 요청
 
         self._now = self._clock()
 
@@ -102,6 +103,13 @@ class Controller:
 
     def cmd_load_zero(self) -> None:
         self._cmd_load_zero = True
+
+    def cmd_exchange_position(self) -> None:
+        """교체 위치: 실린더를 상승 센서(CYL_UP_POS)에 닿을 때까지 올린다.
+
+        수동 대기 상태에서만 시작한다(자동 운전/안전정지/오류 중엔 무시).
+        """
+        self._cmd_exchange = True
 
     def set_vacuum(self, on: bool) -> None:
         """수동 진공 토글. ON 은 허용조건을 만족할 때만 래치된다."""
@@ -262,10 +270,16 @@ class Controller:
             self.cycle_peak_load_kgf = 0.0
         self._cmd_count_reset = False
 
+        # 교체 위치 이동은 수동 대기에서만 시작 — 다른 상태에서 눌린 요청은 버린다.
+        if self.state is not State.MANUAL_IDLE:
+            self._cmd_exchange = False
+
         if self.state in (State.AUTO_IDLE, State.AUTO_COMPLETE) and not self.mode_auto:
             self.state = State.MANUAL_IDLE
         elif self.state is State.MANUAL_IDLE and self.mode_auto:
             self.state = State.AUTO_IDLE
+        elif self.state is State.MANUAL_MOVE_UP and self.mode_auto:
+            self._abort_auto(State.AUTO_IDLE)      # 이동 중 모드 전환 → 중단
         elif self.state is State.BOOT:
             self.state = State.AUTO_IDLE if self.mode_auto else State.MANUAL_IDLE
 
@@ -282,7 +296,13 @@ class Controller:
         if s in (State.SAFETY_STOP, State.ERROR, State.BOOT):
             pass
         elif s is State.MANUAL_IDLE:
-            self._run_manual()
+            if self._cmd_exchange and self.sol_enable_ok:
+                self._cmd_exchange = False
+                self._start_move(State.MANUAL_MOVE_UP, self.settings.up_timeout_ms)
+            else:
+                self._run_manual()
+        elif s is State.MANUAL_MOVE_UP:
+            self._run_manual_move_up()
         elif s is State.AUTO_IDLE:
             if self._rising(DI1.AUTO_START_PB):
                 # 이미 목표 횟수를 채운 상태에서 다시 시작 → 새 배치로 카운트 리셋.
@@ -332,6 +352,20 @@ class Controller:
             # 하강은 샘플 크기에 따라 하강 센서에 안 닿을 수 있다. 그건 정상(에러 아님) —
             # 버튼 누르는 동안 계속 하강/가압하고, 하강 센서에 닿으면 그때 정지한다.
             self.out.valve_down = down and not self.io.di(DI1.CYL_DOWN_POS)
+
+    def _run_manual_move_up(self) -> None:
+        """교체 위치: 상승 센서 도달까지 상승. 도달→수동대기, 시간초과→UP_TIMEOUT,
+        수동 하강 입력→취소(수동대기)."""
+        if self.io.di(DI1.CYL_UP_POS):
+            self.state = State.MANUAL_IDLE
+            return
+        if self._deadline_passed():
+            self._fault(Alarm.UP_TIMEOUT)
+            return
+        if self.io.di(DI1.MANUAL_DOWN_PB):        # 작업자가 하강 누르면 취소
+            self.state = State.MANUAL_IDLE
+            return
+        self.out.valve_up = True
 
     def _run_precheck(self) -> None:
         # 진공은 Auto Start 허가 조건이 아니다(완전 분리). 블로킹 알람만 확인.
@@ -470,6 +504,8 @@ class Controller:
             else:
                 o.lamp_manual_up = True         # 상승/하강 가능
                 o.lamp_manual_down = True
+        elif s is State.MANUAL_MOVE_UP:
+            o.lamp_manual_up = slow             # 교체 위치로 상승 중
         # BOOT 등 그 외 상태: 전부 OFF
 
         if self._buzzer_muted:                  # 부저 정지 버튼 눌림 → 이번 이벤트 음소거

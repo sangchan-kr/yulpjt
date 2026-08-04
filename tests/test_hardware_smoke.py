@@ -29,6 +29,25 @@ def _build(mock_invert_vacuum=False):
     return cfg, a1, a2, ai, io
 
 
+def test_recipe_store_put_get_persist():
+    """레시피 3슬롯: 저장/조회/디스크 영속 (F1)."""
+    from control_system.config import RecipeStore, RuntimeSettings
+    tmp = os.path.join(tempfile.gettempdir(), "recipes_test.json")
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    rs = RecipeStore.load(tmp)
+    assert rs.N == 3 and not rs.is_set(0)
+    vals = {k: getattr(RuntimeSettings(), k) for k in RuntimeSettings._EDITABLE}
+    vals["target_count"] = 123
+    rs.put(1, vals)
+    assert rs.is_set(1) and rs.get(1)["target_count"] == 123
+    assert not rs.is_set(0) and not rs.is_set(2)
+    # 재로드 영속
+    rs2 = RecipeStore.load(tmp)
+    assert rs2.is_set(1) and rs2.get(1)["target_count"] == 123
+    assert not rs2.is_set(0)
+
+
 def test_input_invert_channel_isolation():
     """한 모듈 채널만 반전 지정해도 다른 모듈 같은 채널이 함께 반전되면 안 됨.
 
