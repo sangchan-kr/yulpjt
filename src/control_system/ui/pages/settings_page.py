@@ -79,7 +79,9 @@ class SettingsPage(QWidget):
 
         body = QHBoxLayout()
         body.setSpacing(12)
-        body.addWidget(self._group_card("반복 가압 조건", _LEFT), 1)
+        # 왼쪽(반복 가압): 전체 높이를 채우며 항목을 균등 분배(원래 아래 빈 공간을 항목
+        # 사이로 나눠 간격을 넓힌다). 고정화면이라 강제 높이는 주지 않아 잘림을 피한다.
+        body.addWidget(self._group_card("반복 가압 조건", _LEFT, spread=True), 1)
         right_col = QVBoxLayout()
         right_col.addWidget(self._group_card("하중 및 표시 조건", _RIGHT))
         right_col.addStretch(1)
@@ -103,12 +105,15 @@ class SettingsPage(QWidget):
         root.addLayout(bottom)
         self._refresh_labels()
 
-    def _group_card(self, title: str, fields) -> QFrame:
+    def _group_card(self, title: str, fields, *, spread: bool = False,
+                    box_h: int | None = None) -> QFrame:
         card = QFrame(); card.setObjectName("card")
         lay = QVBoxLayout(card); lay.setContentsMargins(14, 12, 14, 12); lay.setSpacing(8)
         head = QLabel(title); head.setObjectName("cardTitle")
         lay.addWidget(head)
-        grid = QGridLayout(); grid.setVerticalSpacing(10); grid.setHorizontalSpacing(10)
+        grid = QGridLayout()
+        grid.setVerticalSpacing(18 if spread else 10)
+        grid.setHorizontalSpacing(10)
         for row, (attr, label, unit, kind, _m) in enumerate(fields):
             lbl = QLabel(label)
             grid.addWidget(lbl, row, 0)
@@ -125,6 +130,7 @@ class SettingsPage(QWidget):
             box = QLabel("-")
             box.setStyleSheet(_INPUT_QSS)
             box.setMinimumWidth(150)
+            box.setFixedHeight(box_h or 36)     # 박스 높이 고정 → 남는 세로공간은 항목 간격으로
             box.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             box.mousePressEvent = lambda _e, a=attr, l=label, k=kind: self._edit(a, l, k)
             self._value_labels[attr] = box
@@ -132,8 +138,14 @@ class SettingsPage(QWidget):
             u = QLabel(unit); u.setObjectName("mini")
             grid.addWidget(u, row, 2)
         grid.setColumnStretch(1, 1)
-        lay.addLayout(grid)
-        lay.addStretch(1)
+        if spread:
+            # 그리드가 카드의 남는 세로공간을 차지하고, 각 행을 균등 분배해 간격을 넓힌다.
+            for r in range(len(fields)):
+                grid.setRowStretch(r, 1)
+            lay.addLayout(grid, 1)
+        else:
+            lay.addLayout(grid)
+            lay.addStretch(1)
         return card
 
     # ------------------------------------------------------------ 값 편집
