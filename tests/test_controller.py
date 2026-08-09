@@ -656,7 +656,8 @@ def test_exchange_position_moves_up_to_sensor():
 
 
 def test_exchange_position_timeout():
-    ctrl, a1, a2, ai, clk = _build(up_timeout_ms=100)
+    # 교체 이동은 exchange_up_timeout_ms 를 쓴다(짧은 up_timeout_ms 와 분리).
+    ctrl, a1, a2, ai, clk = _build(exchange_up_timeout_ms=100)
     _di(a1, DI1.SOL_ENABLE_OK, True)
     _di(a1, DI1.MODE_AUTO, False)
     ctrl.scan()

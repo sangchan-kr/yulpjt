@@ -298,7 +298,9 @@ class Controller:
         elif s is State.MANUAL_IDLE:
             if self._cmd_exchange and self.sol_enable_ok:
                 self._cmd_exchange = False
-                self._start_move(State.MANUAL_MOVE_UP, self.settings.up_timeout_ms)
+                # 교체 이동은 상승 센서 끝까지 가야 하므로, 짧게 줄일 수 있는 자동 상승
+                # up_timeout_ms 가 아니라 넉넉한 exchange_up_timeout_ms 를 쓴다.
+                self._start_move(State.MANUAL_MOVE_UP, self.cfg.exchange_up_timeout_ms)
             else:
                 self._run_manual()
         elif s is State.MANUAL_MOVE_UP:
