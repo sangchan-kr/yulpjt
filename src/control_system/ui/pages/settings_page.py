@@ -82,7 +82,7 @@ class SettingsPage(QWidget):
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(8)
-        grid.addWidget(self._group_card("반복 가압 조건", _LEFT, spread=True, box_h=42),
+        grid.addWidget(self._group_card("반복 가압 조건", _LEFT, spread=True, box_h=40),
                        0, 0, 2, 1)                       # 2행 span → 전체 높이
         grid.addWidget(self._group_card("하중 및 표시 조건", _RIGHT), 0, 1)
 
@@ -111,7 +111,9 @@ class SettingsPage(QWidget):
     def _group_card(self, title: str, fields, *, spread: bool = False,
                     box_h: int | None = None) -> QFrame:
         card = QFrame(); card.setObjectName("card")
-        lay = QVBoxLayout(card); lay.setContentsMargins(14, 12, 14, 12); lay.setSpacing(8)
+        lay = QVBoxLayout(card)
+        # spread 카드는 마지막 박스가 카드 하단 테두리에 붙지 않도록 아래 마진을 더 준다.
+        lay.setContentsMargins(14, 12, 14, 18 if spread else 12); lay.setSpacing(8)
         head = QLabel(title); head.setObjectName("cardTitle")
         lay.addWidget(head)
         grid = QGridLayout()
