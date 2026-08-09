@@ -77,16 +77,14 @@ class SettingsPage(QWidget):
                 title_row.addWidget(b)
         root.addLayout(title_row)
 
-        body = QHBoxLayout()
-        body.setSpacing(12)
-        # 왼쪽(반복 가압): 전체 높이를 채우며 항목을 균등 분배(원래 아래 빈 공간을 항목
-        # 사이로 나눠 간격을 넓힌다). 고정화면이라 강제 높이는 주지 않아 잘림을 피한다.
-        body.addWidget(self._group_card("반복 가압 조건", _LEFT, spread=True), 1)
-        right_col = QVBoxLayout()
-        right_col.addWidget(self._group_card("하중 및 표시 조건", _RIGHT))
-        right_col.addStretch(1)
-        body.addLayout(right_col, 1)
-        root.addLayout(body, 1)
+        # 본문 그리드: 왼쪽 카드는 세로 전체(버튼이 없는 하단 좌측까지) 차지, 오른쪽은
+        # 위=카드 / 아래=버튼. 왼쪽 카드가 더 커져 박스/간격을 키울 수 있다.
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(8)
+        grid.addWidget(self._group_card("반복 가압 조건", _LEFT, spread=True, box_h=42),
+                       0, 0, 2, 1)                       # 2행 span → 전체 높이
+        grid.addWidget(self._group_card("하중 및 표시 조건", _RIGHT), 0, 1)
 
         bottom = QHBoxLayout()
         self._note = QLabel("")
@@ -102,7 +100,12 @@ class SettingsPage(QWidget):
         for b in (self._b_default, self._b_cancel, self._b_apply, self._b_save):
             b.setMinimumHeight(42); b.setMinimumWidth(84)
             bottom.addWidget(b)
-        root.addLayout(bottom)
+        grid.addLayout(bottom, 1, 1)                     # 버튼은 오른쪽 하단에만
+
+        grid.setRowStretch(0, 1)                         # 오른쪽 카드 행이 늘어남
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        root.addLayout(grid, 1)
         self._refresh_labels()
 
     def _group_card(self, title: str, fields, *, spread: bool = False,
