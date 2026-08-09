@@ -13,7 +13,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QPushButton, QVBoxLayout, QWidget,
+    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from ...config import RuntimeSettings
@@ -89,8 +89,10 @@ class SettingsPage(QWidget):
         bottom = QHBoxLayout()
         self._note = QLabel("")
         self._note.setStyleSheet(f"color:{theme.YELLOW}; font-weight:700;")
-        bottom.addWidget(self._note)
-        bottom.addStretch(1)
+        # 문구가 길어도 오른쪽 열을 넓혀 왼쪽 카드를 밀지 않도록 가로 정책을 Ignored 로.
+        self._note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        bottom.addWidget(self._note, 1)
+        bottom.addStretch(0)
         self._b_default = QPushButton("기본값"); self._b_default.clicked.connect(self._restore_default)
         self._b_cancel = QPushButton("취소"); self._b_cancel.clicked.connect(self._cancel)
         self._b_apply = QPushButton("적용"); self._b_apply.setObjectName("primary")
@@ -211,12 +213,12 @@ class SettingsPage(QWidget):
         d = RuntimeSettings.from_config(self.cfg)
         self._pending = {a: getattr(d, a) for a, *_ in _FIELDS}
         self._refresh_labels()
-        self._note.setText("기본값을 불러왔습니다. ‘적용’을 눌러야 반영됩니다.")
+        self._note.setText("기본값 불러옴")
 
     def _cancel(self) -> None:
         self._pending = dict(self._snapshot())
         self._refresh_labels()
-        self._note.setText("현재 운전값으로 되돌렸습니다.")
+        self._note.setText("되돌림")
 
     # ------------------------------------------------------------ 적용 / 저장
     def _apply(self) -> None:
@@ -226,7 +228,7 @@ class SettingsPage(QWidget):
         for attr, val in self._pending.items():
             setattr(self.ctrl.settings, attr, val)
         self.ctrl.settings.save(self.settings_path)
-        self._note.setText("적용되었습니다. (현재 운전 조건에 반영)")
+        self._note.setText("적용됨")
 
     def _save_recipe(self) -> None:
         """현재 편집값을 레시피 슬롯(1~3)에 저장."""
@@ -237,14 +239,14 @@ class SettingsPage(QWidget):
             return
         self.recipes.put(i, self._pending)
         self._refresh_recipe_btns()
-        self._note.setText(f"레시피 {i + 1}에 저장했습니다.")
+        self._note.setText(f"레시피 {i + 1} 저장")
 
     def _load_recipe(self, i: int) -> None:
         """불러올 값을 미리보기로 보여주고, ‘예’를 누르면 불러와 즉시 적용."""
         if not self._is_idle() or self.recipes is None:
             return
         if not self.recipes.is_set(i):
-            self._note.setText(f"레시피 {i + 1}은(는) 비어 있습니다.")
+            self._note.setText(f"레시피 {i + 1} 비어있음")
             return
         data = self.recipes.get(i)
         if not self._confirm_load(i, data):     # 미리보기 다이얼로그에서 ‘예’
@@ -254,7 +256,7 @@ class SettingsPage(QWidget):
                 self._pending[attr] = data[attr]
         self._refresh_labels()
         self._apply()                           # 불러오기 → 즉시 적용
-        self._note.setText(f"레시피 {i + 1}을(를) 불러와 적용했습니다.")
+        self._note.setText(f"레시피 {i + 1} 적용")
 
     def _confirm_load(self, i: int, data: dict) -> bool:
         """레시피 값 미리보기 + 예/아니오. 예면 True."""
@@ -318,7 +320,7 @@ class SettingsPage(QWidget):
         for b in (self._b_default, self._b_cancel, self._b_apply, self._b_save, *self._recipe_btns):
             b.setEnabled(idle)
         if not idle:
-            self._note.setText("설정은 대기 상태에서만 변경할 수 있습니다.")
-        elif self._note.text().startswith("설정은"):
+            self._note.setText("대기 상태에서만 변경 가능")
+        elif self._note.text().startswith("대기 상태"):
             self._note.setText("")
         self._refresh_recipe_btns()
