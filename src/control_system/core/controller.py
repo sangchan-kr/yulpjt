@@ -395,10 +395,11 @@ class Controller:
 
     def _run_move_up(self) -> None:
         self.out.valve_up = True
-        if self.io.di(DI1.CYL_UP_POS):
+        # 상승 위치센서 도달 '또는' 이동시간(up_timeout_ms) 경과 → 다웰.
+        # 스트로크를 줄여 센서까지 안 올리는 짧은 상승도 에러가 아니라 정상 진행(시간 기반).
+        # (교체 위치 _run_manual_move_up 은 센서까지 가야 하므로 거기선 UP_TIMEOUT 유지.)
+        if self.io.di(DI1.CYL_UP_POS) or self._deadline_passed():
             self._start_dwell(State.AUTO_DWELL_UP, self.settings.up_dwell_ms)
-        elif self._deadline_passed():
-            self._fault(Alarm.UP_TIMEOUT)
 
     def _run_dwell_up(self) -> None:
         if self._now >= self._t_dwell_end:

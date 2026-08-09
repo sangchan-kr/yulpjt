@@ -407,21 +407,27 @@ def test_auto_down_load_detect():
     assert not ctrl.alarms                        # 에러 아님
 
 
-def test_separate_up_timeout():
-    # 하강은 즉시 도달, 상승만 미도달 → UP_TIMEOUT (timeout 분리 확인)
-    ctrl, a1, a2, ai, clk = _build(down_timeout_ms=2000, up_timeout_ms=150, down_dwell_ms=20)
+def test_auto_up_short_stroke_no_error():
+    """자동 상승: 스트로크를 줄여 상승센서 미도달이어도 시간 경과로 다웰→진행(에러 아님).
+
+    (교체 위치 _run_manual_move_up 은 센서까지 가야 하므로 거기선 UP_TIMEOUT 유지 — 별도 테스트.)
+    """
+    ctrl, a1, a2, ai, clk = _build(down_timeout_ms=2000, up_timeout_ms=150,
+                                   down_dwell_ms=20, up_dwell_ms=20, target_count=1)
     _di(a1, DI1.SOL_ENABLE_OK, True)
     _di(a1, DI1.MODE_AUTO, True)
     ctrl.scan()
     _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
-    for _ in range(200):
+    for _ in range(300):
         clk.advance(0.03); ctrl.scan()
-        if ctrl.out.valve_down:                # 하강 지령 → 즉시 도달만 시뮬
-            _di(a1, DI1.CYL_DOWN_POS, True)
-        # 상승 위치는 절대 주지 않음
-        if ctrl.state is State.ERROR:
+        _di(a1, DI1.CYL_DOWN_POS, bool(ctrl.out.valve_down))   # 하강만 즉시 도달 시뮬
+        # 상승 위치센서는 절대 주지 않음(짧은 스트로크)
+        if ctrl.state in (State.AUTO_COMPLETE, State.ERROR):
             break
-    assert Alarm.UP_TIMEOUT in ctrl.alarms
+    assert ctrl.state is State.AUTO_COMPLETE      # 센서 없이 시간 기반으로 완료
+    assert Alarm.UP_TIMEOUT not in ctrl.alarms
+    assert not ctrl.alarms
+    assert ctrl.count == 1
 
 
 def test_auto_stop_aborts():
