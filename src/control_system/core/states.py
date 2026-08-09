@@ -17,6 +17,7 @@ class State(Enum):
     AUTO_MOVE_UP = "AUTO_MOVE_UP"
     AUTO_DWELL_UP = "AUTO_DWELL_UP"
     AUTO_COUNT_UPDATE = "AUTO_COUNT_UPDATE"
+    AUTO_EXCHANGE_UP = "AUTO_EXCHANGE_UP"  # 완료 후 교체 위치(상승 센서)로 이동
     AUTO_COMPLETE = "AUTO_COMPLETE"
     MANUAL_IDLE = "MANUAL_IDLE"
     MANUAL_MOVE_UP = "MANUAL_MOVE_UP"    # 교체 위치: 상승 센서 닿을 때까지 이동

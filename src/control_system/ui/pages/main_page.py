@@ -19,7 +19,8 @@ _STAGE_KO = {
     State.BOOT: "초기화", State.AUTO_IDLE: "자동 대기", State.AUTO_PRECHECK: "사전 점검",
     State.AUTO_MOVE_DOWN: "하강 중", State.AUTO_DWELL_DOWN: "가압 유지 중",
     State.AUTO_MOVE_UP: "상승 중", State.AUTO_DWELL_UP: "상승 유지",
-    State.AUTO_COUNT_UPDATE: "카운트", State.AUTO_COMPLETE: "운전 완료",
+    State.AUTO_COUNT_UPDATE: "카운트", State.AUTO_EXCHANGE_UP: "교체 위치 이동 중",
+    State.AUTO_COMPLETE: "운전 완료",
     State.MANUAL_IDLE: "수동 대기", State.MANUAL_MOVE_UP: "교체 위치 이동 중",
     State.SAFETY_STOP: "안전 정지", State.ERROR: "오류",
 }

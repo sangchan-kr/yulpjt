@@ -324,6 +324,8 @@ class Controller:
             self._run_dwell_up()
         elif s is State.AUTO_COUNT_UPDATE:
             self._run_count_update()
+        elif s is State.AUTO_EXCHANGE_UP:
+            self._run_auto_exchange_up()
         elif s is State.AUTO_COMPLETE:
             # 완료 후 Auto Start 재입력 → 카운트 리셋하고 정해진 횟수를 다시 반복.
             if self._rising(DI1.AUTO_START_PB):
@@ -408,9 +410,22 @@ class Controller:
     def _run_count_update(self) -> None:
         self.count += 1
         if self.count >= self.target_count:
-            self.state = State.AUTO_COMPLETE
+            # 완료 → 교체 위치(상승 센서 끝)로 올린 뒤 정지. 자동 사이클 상승은 짧을 수 있어
+            # 여기선 넉넉한 exchange_up_timeout_ms 로 끝까지 올린다.
+            self._start_move(State.AUTO_EXCHANGE_UP, self.cfg.exchange_up_timeout_ms)
         else:
             self._start_move(State.AUTO_MOVE_DOWN, self.settings.down_timeout_ms)
+
+    def _run_auto_exchange_up(self) -> None:
+        """자동 완료 후 교체 위치(상승 센서)까지 상승 → AUTO_COMPLETE 정지.
+
+        센서 도달 시 정지. 센서 미도달로 안전 타임아웃 경과 시에도 에러 없이 그 자리 정지
+        (교체 이동이 완료 자체를 실패로 만들지는 않는다).
+        """
+        if self.io.di(DI1.CYL_UP_POS) or self._deadline_passed():
+            self.state = State.AUTO_COMPLETE       # 도달/시간초과 → 그 자리 정지(밸브 off)
+        else:
+            self.out.valve_up = True
 
     # ----------------------------------------------------------------- 진공 (수동, 분리)
     def _update_vacuum(self) -> None:

@@ -421,13 +421,42 @@ def test_auto_up_short_stroke_no_error():
     for _ in range(300):
         clk.advance(0.03); ctrl.scan()
         _di(a1, DI1.CYL_DOWN_POS, bool(ctrl.out.valve_down))   # 하강만 즉시 도달 시뮬
-        # 상승 위치센서는 절대 주지 않음(짧은 스트로크)
+        # 자동 사이클 상승엔 위치센서 안 줌(짧은 스트로크). 완료 후 교체 이동에서만 도달 시뮬.
+        if ctrl.state is State.AUTO_EXCHANGE_UP and ctrl.out.valve_up:
+            _di(a1, DI1.CYL_UP_POS, True)
         if ctrl.state in (State.AUTO_COMPLETE, State.ERROR):
             break
-    assert ctrl.state is State.AUTO_COMPLETE      # 센서 없이 시간 기반으로 완료
+    assert ctrl.state is State.AUTO_COMPLETE      # 짧은 상승도 에러 없이 완료
     assert Alarm.UP_TIMEOUT not in ctrl.alarms
     assert not ctrl.alarms
     assert ctrl.count == 1
+
+
+def test_auto_complete_moves_to_exchange_position():
+    """자동 반복 완료 → 교체 위치(상승 센서)로 이동 후 AUTO_COMPLETE 정지."""
+    ctrl, a1, a2, ai, clk = _build(down_timeout_ms=100, up_timeout_ms=100,
+                                   down_dwell_ms=20, up_dwell_ms=20, target_count=1,
+                                   exchange_up_timeout_ms=5000)
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, True)
+    ctrl.scan()
+    _di(a1, DI1.AUTO_START_PB, True); ctrl.scan(); _di(a1, DI1.AUTO_START_PB, False)
+    saw_exchange = drove_up = False
+    for _ in range(300):
+        clk.advance(0.03); ctrl.scan()
+        _di(a1, DI1.CYL_DOWN_POS, bool(ctrl.out.valve_down))   # 하강만 즉시 도달
+        if ctrl.state is State.AUTO_EXCHANGE_UP:
+            saw_exchange = True
+            if ctrl.out.valve_up:                   # 교체 이동 = 상승 구동
+                drove_up = True
+                _di(a1, DI1.CYL_UP_POS, True)       # 상승 센서 도달 시뮬
+        if ctrl.state is State.AUTO_COMPLETE:
+            break
+    assert saw_exchange and drove_up                # 완료 후 교체 위치로 상승 이동함
+    assert ctrl.state is State.AUTO_COMPLETE
+    assert ctrl.count == 1
+    assert not ctrl.out.valve_up and not ctrl.out.valve_down   # 그 자리 정지
+    assert not ctrl.alarms
 
 
 def test_auto_stop_aborts():

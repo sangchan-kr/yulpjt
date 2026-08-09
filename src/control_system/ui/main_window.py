@@ -33,6 +33,7 @@ from .trend import LoadTrend
 _AUTO_RUNNING = {
     State.AUTO_PRECHECK, State.AUTO_MOVE_DOWN, State.AUTO_DWELL_DOWN,
     State.AUTO_MOVE_UP, State.AUTO_DWELL_UP, State.AUTO_COUNT_UPDATE,
+    State.AUTO_EXCHANGE_UP,
 }
 
 
