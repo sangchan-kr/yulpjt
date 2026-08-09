@@ -188,6 +188,7 @@ class SettingsPage(QWidget):
             cb.blockSignals(True); cb.setChecked(bool(self._pending[attr])); cb.blockSignals(False)
             return
         self._pending[attr] = on
+        self._note.setText("수정됨 (적용 필요)")   # 편집만으론 미반영 — '적용' 눌러야 반영
 
     def _edit(self, attr: str, label: str, kind: str) -> None:
         if not self._is_idle():
@@ -195,6 +196,7 @@ class SettingsPage(QWidget):
         if kind == "bool":
             self._pending[attr] = not self._pending[attr]
             self._refresh_labels()
+            self._note.setText("수정됨 (적용 필요)")
             return
         mult = self._mult(attr)
         is_float = kind == "float"
@@ -206,6 +208,7 @@ class SettingsPage(QWidget):
         stored = new / mult
         self._pending[attr] = float(stored) if (is_float and mult == 1) else int(round(stored))
         self._refresh_labels()
+        self._note.setText("수정됨 (적용 필요)")
 
     def _restore_default(self) -> None:
         if not self._is_idle():
