@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>반복 가압 측정기 — 조작 설명서</title>
+<style>
+  :root{ --ink:#1b2735; --blue:#1f5fa6; --muted:#5b6b7f; --line:#c9d4e0; --soft:#eef2f7; }
+  * { box-sizing: border-box; }
+  html,body{ margin:0; padding:0; color:var(--ink);
+    font-family:"Malgun Gothic","맑은 고딕","NanumGothic","Noto Sans KR",sans-serif; }
+  body{ font-size:10.5pt; line-height:1.6; }
+  h1{ font-size:22pt; margin:0 0 2mm; }
+  h2{ font-size:15pt; color:var(--blue); border-bottom:1.5px solid var(--line);
+      padding-bottom:1.5mm; margin:9mm 0 3mm; }
+  h3{ font-size:12pt; margin:5mm 0 2mm; }
+  h4{ font-size:10.8pt; margin:4mm 0 1.5mm; color:var(--muted); }
+  p,li{ margin:1.2mm 0; }
+  ul,ol{ margin:1.5mm 0 1.5mm 6mm; padding:0; }
+  code{ background:var(--soft); padding:0 3px; border-radius:3px; font-family:Consolas,monospace; }
+  strong{ color:var(--ink); }
+  table{ border-collapse:collapse; width:100%; margin:2mm 0 4mm; font-size:9.8pt; }
+  th,td{ border:1px solid #b8c4d0; padding:2.2mm 3mm; vertical-align:top; text-align:left; }
+  th{ background:var(--soft); color:var(--ink); }
+  .muted{ color:var(--muted); }
+  .note{ background:#fff8e6; border:1px solid #f0d98a; border-radius:4px; padding:3mm 4mm; margin:3mm 0; }
+  .danger{ background:#fdecec; border:1px solid #f2c9c6; border-radius:4px; padding:3mm 4mm; margin:3mm 0; }
+
+  /* 표지 */
+  .cover{ text-align:center; padding-top:55mm; }
+  .cover .sub{ font-size:13pt; color:var(--muted); margin-top:3mm; }
+  .cover .meta{ margin-top:35mm; font-size:11pt; color:var(--muted); line-height:2; }
+  .cover .model{ display:inline-block; margin-top:8mm; border:2px solid var(--blue);
+     color:var(--blue); border-radius:8px; padding:3mm 8mm; font-size:14pt; font-weight:800; }
+
+  /* 그림 + 콜아웃 */
+  figure{ margin:4mm 0 6mm; page-break-inside:avoid; }
+  .shot{ position:relative; width:100%; max-width:148mm; margin:0 auto;
+     border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .shot img{ display:block; width:100%; height:auto; }
+  .cal{ position:absolute; width:6.2mm; height:6.2mm; margin:-3.1mm 0 0 -3.1mm;
+     background:#e8112d; color:#fff; border:1.5px solid #fff; border-radius:50%;
+     font-size:8.5pt; font-weight:800; line-height:6mm; text-align:center;
+     box-shadow:0 0 2px rgba(0,0,0,.4); }
+  figcaption{ text-align:center; color:var(--muted); font-size:9.5pt; margin-top:2mm; }
+  table.legend{ margin-top:2.5mm; }
+  table.legend td:first-child, table.legend th:first-child{ width:12mm; text-align:center; }
+  table.legend td:nth-child(2){ width:42mm; font-weight:700; }
+
+  .toc ol{ list-style:none; margin-left:0; }
+  .toc li{ padding:0.6mm 0; border-bottom:1px dotted #d7dee6; }
+
+  /* 인쇄 */
+  @page{ size:A4; margin:16mm 15mm 18mm; }
+  .page-break{ page-break-before:always; }
+  @media print{ a{ color:inherit; text-decoration:none; } }
+</style>
+</head>
+<body>
+
+<!-- ===================== 표지 ===================== -->
+<section class="cover">
+  <h1>반복 가압 측정기</h1>
+  <div class="sub">조작 설명서 · Repeated Pressing / Load-Cycle Tester — Operation Manual</div>
+  <div class="model">모델: [확인필요]</div>
+  <div class="meta">
+    제조사 : [확인필요]<br>
+    문서 버전 : v0.3 (초안)   ·   발행일 : 2026-08-09<br>
+    HMI 버전 : v1.12
+  </div>
+</section>
+
+<!-- ===================== 목차 ===================== -->
+<section class="page-break toc">
+  <h2>목차</h2>
+  <ol>
+    <li>1. 안전 수칙</li>
+    <li>2. 명판</li>
+    <li>3. 제품 소개</li>
+    <li>4. 제품 규격</li>
+    <li>5. 주요 특징</li>
+    <li>6. 각부 명칭</li>
+    <li>7. 설치 준비</li>
+    <li>8. 조작 방법 (화면 설명 · 자동/수동 운전)</li>
+    <li>9. 하드웨어 조정 (공압 · 로드셀)</li>
+    <li>10. 알람 및 안전 정지</li>
+    <li>11. 청소 및 유지보수</li>
+    <li>12. 고장 처리</li>
+    <li>13. 부록</li>
+  </ol>
+  <div class="note muted">표기: <code>[확인필요]</code> = 사양 확인 필요, <code>[그림]</code> = 사진·도면 삽입 예정.</div>
+</section>
+
+<!-- ===================== 1. 안전 ===================== -->
+<section class="page-break">
+  <h2>1. 안전 수칙</h2>
+  <p>안전한 작업 환경에서 작업 효율을 높이고 상해 사고를 예방하기 위해 아래 안전 수칙을 준수하십시오.
+     본 설명서 지침을 지키면 장비를 오랫동안 최적의 성능으로 사용할 수 있습니다.</p>
+
+  <h3>1.1 경고 표시</h3>
+  <table>
+    <tr><th style="width:32mm">구분</th><th>의미</th></tr>
+    <tr><td><strong>감전 주의</strong></td><td>제어반·전원부 내부에 고전압. 자격자 외 개방 금지.</td></tr>
+    <tr><td><strong>비상정지</strong></td><td>위험 시 즉시 비상정지(EMO) 버튼을 누르십시오.</td></tr>
+    <tr><td><strong>협착 주의</strong></td><td>가압 실린더·가동부에 손을 넣지 마십시오.</td></tr>
+    <tr><td><strong>접근 금지</strong></td><td>운전 중 라이트 커튼 감지 영역에 신체를 넣지 마십시오.</td></tr>
+  </table>
+
+  <h3>1.2 안전 장치</h3>
+  <ul>
+    <li><strong>비상정지(EMO)</strong> : 누르는 동안 솔레노이드 전원을 차단합니다. 밸브(5/3 클로즈드센터)가
+        중립으로 가 실린더가 <strong>그 자리에서 정지</strong>합니다.</li>
+    <li><strong>라이트 커튼</strong> : 감지 영역에 물체/신체가 들어오면 구동을 차단합니다.</li>
+    <li>두 장치는 모두 <strong>구동 허가</strong> 신호로 제어부에도 전달되어, 화면 상단이
+        <strong>구동 차단</strong>으로 바뀌고 <strong>안전 정지(SAFETY STOP)</strong> 상태가 됩니다.
+        이때 모든 액추에이터와 진공 출력이 강제로 꺼집니다.</li>
+  </ul>
+
+  <h3>1.3 안전 정지 및 복귀</h3>
+  <p>안전 정지 시 아래 화면이 표시됩니다.</p>
+  <figure>
+    <div class="shot">
+      <img src="img/04_safety.png" alt="안전 정지 화면">
+      <span class="cal" style="left:33%;top:73%">1</span>
+      <span class="cal" style="left:50%;top:73%">2</span>
+      <span class="cal" style="left:67%;top:73%">3</span>
+    </div>
+    <figcaption>그림 1-1. 안전 정지 화면</figcaption>
+    <table class="legend">
+      <tr><th>번호</th><th>명칭</th><th>기능</th></tr>
+      <tr><td>1</td><td>상태 확인</td><td>오버레이를 잠시 숨기고 시스템 상태 화면으로 이동해 원인 확인</td></tr>
+      <tr><td>2</td><td>부저 정지</td><td>부저를 임시 음소거(알람 해소 시 자동 재알람)</td></tr>
+      <tr><td>3</td><td>안전 복귀</td><td>원인 제거 후 복귀. 안전 복귀를 눌러야 부저가 멈춤</td></tr>
+    </table>
+  </figure>
+  <ol>
+    <li>위험 요인(비상정지 눌림, 라이트 커튼 감지 등)을 제거합니다.</li>
+    <li>화면 상단 <strong>구동 허가</strong> 표시가 초록으로 돌아온 것을 확인합니다.</li>
+    <li><strong>안전 복귀</strong>를 누릅니다.</li>
+    <li><strong>복귀 후 진공은 자동으로 켜지지 않습니다.</strong> 필요 시 다시 켜십시오.</li>
+  </ol>
+
+  <h3>1.4 일반 주의사항</h3>
+  <ul>
+    <li>실린더 하강·가압 중 손·공구를 넣지 마십시오(협착 위험).</li>
+    <li>정전 시 밸브는 스프링 센터로 중립(정지)이 됩니다. 잔압에 주의하십시오.</li>
+    <li>공압이 연결되지 않았거나 규정 압력 미만이면 정상 동작하지 않습니다.</li>
+  </ul>
+</section>
+
+<!-- ===================== 2~7 (요약/틀) ===================== -->
+<section class="page-break">
+  <h2>2. 명판</h2>
+  <p class="muted">[그림] 명판 위치 및 표기(모델·전원·공압·제조번호·제조일). [확인필요]</p>
+
+  <h2>3. 제품 소개</h2>
+  <p>본 장비는 공압 실린더로 시료에 <strong>반복 가압</strong>을 가하고 <strong>로드셀로 하중을 실시간 측정</strong>하는
+     시험 장비입니다. 터치스크린으로 반복 횟수·유지시간·하중 상한 등을 설정하여 자동 반복 시험을 수행합니다.
+     진공 흡착(옵션)은 자동 사이클과 독립된 수동 기능입니다.</p>
+
+  <h2>4. 제품 규격</h2>
+  <table>
+    <tr><th style="width:45mm">항목</th><th>값</th></tr>
+    <tr><td>모델</td><td>[확인필요]</td></tr>
+    <tr><td>전원</td><td>[확인필요] (제어 24 VDC)</td></tr>
+    <tr><td>공압</td><td>0.4 MPa 이상 권장</td></tr>
+    <tr><td>로드셀</td><td>CSB-1T, 1000 kgf 만용량, 4–20 mA</td></tr>
+    <tr><td>반복 횟수</td><td>1 ~ 999 회 [확인필요]</td></tr>
+    <tr><td>유지시간(Dwell)</td><td>하강/상승 각 0 ~ [확인] 초</td></tr>
+    <tr><td>밸브/실린더</td><td>복동 실린더 + 5/3 클로즈드센터 밸브(TPC DS6340)</td></tr>
+    <tr><td>디스플레이</td><td>7" 터치스크린, 1024×600</td></tr>
+    <tr><td>외형(WxDxH)·중량</td><td>[확인필요]</td></tr>
+  </table>
+  <p class="muted">지속 개량으로 사양은 예고 없이 변경될 수 있습니다.</p>
+
+  <h2>5. 주요 특징</h2>
+  <ul>
+    <li>터치스크린 HMI(한글).</li>
+    <li>안전 : 라이트 커튼 + 비상정지 + 구동 허가 인터록, 안전 정지/복귀.</li>
+    <li>로드셀 실시간 하중 측정, 현재/운전 최대, <strong>하중 상한 초과 보호</strong>.</li>
+    <li>자동 반복 가압(하강→가압유지→상승→유지→카운트), 완료 후 <strong>교체 위치(상단)로 이동 정지</strong>.</li>
+    <li><strong>하강 하중 도달 판정</strong>(옵션) : 위치센서 없이 로드셀 기준값으로 판정.</li>
+    <li><strong>레시피 3슬롯</strong>.</li>
+    <li>진공 흡착(옵션, 수동 전용).</li>
+  </ul>
+
+  <h2>6. 각부 명칭</h2>
+  <p class="muted">[그림] 전면도/후면도(번호 라벨) — 실물 사진 삽입 예정.</p>
+  <p>비상정지 · 메인 전원 · 터치스크린 · Auto Start/Stop · Manual Up/Down · AUTO/MANUAL 셀렉터 ·
+     가압 실린더 · 로드셀 · 라이트 커튼 · 작업 테이블 · 스피드 컨트롤러 · 공압 필터·레귤레이터.</p>
+
+  <h2>7. 설치 준비</h2>
+  <ol>
+    <li>개봉 후 수평 바닥에 설치하고 청소합니다.</li>
+    <li>공압을 필터·레귤레이터 입구에 연결합니다(0.4 MPa 이상).</li>
+    <li>전원을 연결합니다. [확인필요: 전압/차단기]</li>
+    <li>메인 전원 ON → 부팅 화면 → 잠시 후 메인 화면으로 진입합니다.</li>
+  </ol>
+</section>
+
+<!-- ===================== 8. 조작 ===================== -->
+<section class="page-break">
+  <h2>8. 조작 방법</h2>
+
+  <h3>8.1 운전 화면 (메인)</h3>
+  <figure>
+    <div class="shot">
+      <img src="img/01_main.png" alt="운전 화면">
+      <span class="cal" style="left:28%;top:6%">1</span>
+      <span class="cal" style="left:11%;top:13%">2</span>
+      <span class="cal" style="left:40%;top:25%">3</span>
+      <span class="cal" style="left:9%;top:33%">4</span>
+      <span class="cal" style="left:14%;top:59%">5</span>
+      <span class="cal" style="left:25%;top:69%">6</span>
+      <span class="cal" style="left:8%;top:78%">7</span>
+      <span class="cal" style="left:75%;top:31%">8</span>
+      <span class="cal" style="left:75%;top:41%">9</span>
+      <span class="cal" style="left:75%;top:57%">10</span>
+      <span class="cal" style="left:84%;top:72%">11</span>
+      <span class="cal" style="left:9%;top:93%">12</span>
+    </div>
+    <figcaption>그림 8-1. 운전 화면</figcaption>
+    <table class="legend">
+      <tr><th>번호</th><th>명칭</th><th>기능</th></tr>
+      <tr><td>1</td><td>모드/상태 배지</td><td>현재 자동/수동 모드와 상태(대기·운전·안전정지 등) 표시</td></tr>
+      <tr><td>2</td><td>상태 스트립</td><td>구동 허가 · 실린더 · 진공 · 하중 정상 · 통신 정상 램프</td></tr>
+      <tr><td>3</td><td>반복 횟수</td><td>현재 / 목표 반복 횟수</td></tr>
+      <tr><td>4</td><td>현재 동작</td><td>현재 단계 표시(자동 대기·하강 중·가압 유지 중 등), dwell 남은시간</td></tr>
+      <tr><td>5</td><td>하강/상승 유지시간</td><td>현재 설정된 Dwell 시간 표시</td></tr>
+      <tr><td>6</td><td>교체 위치</td><td>실린더를 상단 센서까지 올려 정지(시료 교체용)</td></tr>
+      <tr><td>7</td><td>조작 버튼</td><td>안전 복귀 · 알람 해제 · 횟수 초기화 · 하중 영점</td></tr>
+      <tr><td>8</td><td>현재 하중</td><td>로드셀 실시간 하중(kgf)</td></tr>
+      <tr><td>9</td><td>현재/운전 최대·하중 상한</td><td>사이클/운전 최대 하중, 하중 상한 설정값</td></tr>
+      <tr><td>10</td><td>하중 트렌드·진행률</td><td>실시간 하중 그래프, 반복 진행률</td></tr>
+      <tr><td>11</td><td>진공 조작</td><td>진공 명령/확인 표시 + 진공 켜기/끄기(수동 전용)</td></tr>
+      <tr><td>12</td><td>하단 네비게이션</td><td>운전 · 조건설정 · 시스템상태 · 로그 · 도움말</td></tr>
+    </table>
+  </figure>
+
+  <h3>8.2 자동 운전</h3>
+  <ol>
+    <li>제어반 셀렉터를 <strong>AUTO</strong> 위치로 돌립니다(상단바가 “자동”).</li>
+    <li><strong>조건설정</strong>에서 반복 횟수·유지시간·하중 상한 등을 확인/적용합니다(§8.4).</li>
+    <li>시료를 올리고(필요 시 진공 켜기), <strong>Auto Start</strong>를 누릅니다.</li>
+    <li>자동 사이클 : <strong>하강 → 가압 유지 → 상승 → 유지 → 카운트 +1</strong>, 설정 횟수만큼 반복.</li>
+    <li>설정 횟수를 채우면 <strong>교체 위치(상단)로 이동한 뒤 정지</strong>합니다(“운전 완료”).</li>
+    <li>다시 시작하려면 <strong>Auto Start</strong>. 중지는 <strong>Auto Stop</strong>.</li>
+  </ol>
+  <div class="note">
+    <strong>참고</strong> : 시료 크기에 따라 하강 위치센서에 닿지 않을 수 있으며 이는 오류가 아닙니다
+    (이동시간 경과 시 정상 진행). 과가압은 <strong>하중 상한</strong>이 보호합니다.
+    “하강 하중 도달 사용”을 켜면 로드셀 기준값으로 도달을 판정합니다.
+  </div>
+
+  <h3>8.3 수동 운전</h3>
+  <ul>
+    <li>셀렉터를 <strong>MANUAL</strong>로. <strong>Manual Up/Down</strong> — 누르는 동안 이동하고
+        위치 센서에 닿으면 정지합니다(하강은 시료로 미도달 가능=정상).</li>
+    <li>운전 화면 <strong>교체 위치</strong> 버튼으로 상단까지 올려 정지시킬 수 있습니다.</li>
+  </ul>
+
+  <h3>8.4 조건 설정</h3>
+  <figure>
+    <div class="shot">
+      <img src="img/02_settings.png" alt="조건 설정 화면">
+      <span class="cal" style="left:12%;top:25%">1</span>
+      <span class="cal" style="left:33%;top:25%">2</span>
+      <span class="cal" style="left:20%;top:72%">3</span>
+      <span class="cal" style="left:70%;top:25%">4</span>
+      <span class="cal" style="left:80%;top:78%">5</span>
+    </div>
+    <figcaption>그림 8-2. 조건 설정 화면</figcaption>
+    <table class="legend">
+      <tr><th>번호</th><th>명칭</th><th>기능</th></tr>
+      <tr><td>1</td><td>항목 라벨</td><td>반복 가압 조건(목표 횟수·유지/제한시간·하강 하중 도달 등)</td></tr>
+      <tr><td>2</td><td>값 입력</td><td>탭하면 숫자 키패드로 편집(대기값에만 저장)</td></tr>
+      <tr><td>3</td><td>사용 체크박스</td><td>하강 하중 도달 사용 등 on/off</td></tr>
+      <tr><td>4</td><td>하중·표시 조건</td><td>하중 상한, 진공 확인 시간, 그래프 구간, 화면 밝기</td></tr>
+      <tr><td>5</td><td>조작 버튼</td><td>기본값 · 취소 · <strong>적용</strong> · 저장(레시피)</td></tr>
+    </table>
+  </figure>
+  <table>
+    <tr><th style="width:38mm">항목</th><th style="width:16mm">단위</th><th>설명</th></tr>
+    <tr><td>목표 반복 횟수</td><td>회</td><td>자동 반복 횟수</td></tr>
+    <tr><td>하강/상승 유지시간</td><td>초</td><td>하강/상승 후 유지(Dwell) 시간</td></tr>
+    <tr><td>하강/상승 제한시간</td><td>초</td><td>이동시간(센서 미도달 시 이 시간 후 진행, 짧은 스트로크 가능)</td></tr>
+    <tr><td>하강 하중 도달 사용 / 도달 하중</td><td>체크 / kgf</td><td>로드셀 기준으로 하강 도달 판정</td></tr>
+    <tr><td>하중 상한</td><td>kgf</td><td>초과 시 과가압 보호(정지)</td></tr>
+    <tr><td>진공 확인 제한시간</td><td>초</td><td>진공 ON 후 확인 신호 대기</td></tr>
+    <tr><td>그래프 표시 구간 / 화면 밝기</td><td>초 / %</td><td>트렌드 시간 / 디스플레이 밝기</td></tr>
+  </table>
+  <div class="danger">
+    <strong>중요</strong> : 값을 편집한 것만으로는 반영되지 않습니다. 반드시 <strong>[적용]</strong>을 눌러야
+    운전에 반영·저장됩니다(편집 중에는 “수정됨(적용 필요)” 표시). 모든 설정 변경은 <strong>대기 상태</strong>에서만 가능합니다.
+  </div>
+  <p><strong>레시피</strong> : [저장]으로 슬롯(1~3)에 현재 편집값 저장, [레시피 1/2/3]으로 불러와 즉시 적용.</p>
+
+  <h3>8.5 시스템 상태</h3>
+  <figure>
+    <div class="shot">
+      <img src="img/03_status.png" alt="시스템 상태 화면">
+      <span class="cal" style="left:25%;top:35%">1</span>
+      <span class="cal" style="left:18%;top:60%">2</span>
+      <span class="cal" style="left:57%;top:30%">3</span>
+      <span class="cal" style="left:75%;top:55%">4</span>
+    </div>
+    <figcaption>그림 8-3. 시스템 상태 화면</figcaption>
+    <table class="legend">
+      <tr><th>번호</th><th>명칭</th><th>기능</th></tr>
+      <tr><td>1</td><td>제어기·통신 요약</td><td>프로그램·실행시간·CPU 온도·저장공간·폴링·로드셀 원신호·진공 확인</td></tr>
+      <tr><td>2</td><td>모듈 연결 램프</td><td>입출력1 · 입출력2 · 아날로그 통신 상태(초록=정상)</td></tr>
+      <tr><td>3</td><td>탭</td><td>입출력 1 / 입출력 2 / 아날로그</td></tr>
+      <tr><td>4</td><td>I/O 표시</td><td>DI/DO 상태, 아날로그(A0~3 전류 mA, A4~7 전압 V)</td></tr>
+    </table>
+  </figure>
+
+  <h3>8.6 로그 · 진공 · 유지보수 · 도움말</h3>
+  <ul>
+    <li><strong>로그</strong> : 운전 기록 · <strong>알람</strong> · 이벤트 · 하중 트렌드 탭. 알람 탭은 안전정지·오류·하중 상한 초과·통신 오류·진공 경고 등을 모아 표시.</li>
+    <li><strong>진공</strong> : 수동 전용이며 자동 사이클과 완전 독립. 운전 화면에서 켜기/끄기.</li>
+    <li><strong>유지보수(관리자)</strong> : 설정(톱니바퀴) + 암호 진입. I/O 단위 시험, <strong>로드셀 영점/스팬 캘리브레이션</strong>.</li>
+    <li><strong>도움말</strong> : 빠른 사용법과 하드웨어 조정 요약(스크롤).</li>
+  </ul>
+</section>
+
+<!-- ===================== 9. 하드웨어 조정 ===================== -->
+<section class="page-break">
+  <h2>9. 하드웨어 조정</h2>
+  <h3>9.1 이동 속도 — 스피드 컨트롤러(스피드콘)</h3>
+  <ul>
+    <li>실린더 밸브의 배기 스피드 컨트롤러로 이동 속도를 조절합니다.</li>
+    <li><strong>위쪽 = 상승 속도, 아래쪽 = 하강 속도.</strong> 조이면 느려지고 풀면 빨라집니다.</li>
+    <li>조절 후 잠금 너트로 고정하십시오.</li>
+  </ul>
+  <h3>9.2 최대 압력 — 레귤레이터(우측)</h3>
+  <ul>
+    <li>우측 레귤레이터로 가압 <strong>최대 압력</strong>을 설정합니다.</li>
+    <li>대략 <strong>1 MPa 당 약 100 kgf</strong>로 환산해 목표 하중에 맞춰 미세 조절(예 : 300 kgf → 약 3 MPa).</li>
+    <li><strong>하중 상한(조건설정)보다 낮게</strong> 두는 것이 안전합니다.</li>
+  </ul>
+  <h3>9.3 로드셀 영점/스팬</h3>
+  <p>유지보수 화면에서 무부하 상태 <strong>하중 영점</strong>, 기준 하중으로 스팬 보정.</p>
+  <p class="muted">[그림] 스피드 컨트롤러/레귤레이터 실물 사진 삽입 예정.</p>
+</section>
+
+<!-- ===================== 10~12 ===================== -->
+<section class="page-break">
+  <h2>10. 알람 및 안전 정지</h2>
+  <p><strong>안전 정지</strong> : 비상정지·라이트 커튼·구동 허가 차단 시 발생. 모든 액추에이터/진공 OFF,
+     부저(안전 복귀까지). 복귀 절차는 §1.3.</p>
+  <table>
+    <tr><th style="width:42mm">알람</th><th>원인</th><th>조치</th></tr>
+    <tr><td>밸브 인터록</td><td>상승/하강 동시 명령</td><td>입력 확인</td></tr>
+    <tr><td>수동 동시 입력</td><td>Up/Down 동시</td><td>한쪽만</td></tr>
+    <tr><td>상승 위치 미도달</td><td>교체 이동 시간 초과</td><td>배선/센서·시간 확인</td></tr>
+    <tr><td>하중 상한 초과</td><td>과가압</td><td>압력(레귤레이터)·하중 상한 확인</td></tr>
+    <tr><td>통신 오류</td><td>USB/RS-485 노이즈(재열거)</td><td>페라이트·배선 분리(§11)</td></tr>
+    <tr><td>진공 경고</td><td>진공 미도달/신호 이상</td><td>배관·센서 확인(운전엔 영향 없음)</td></tr>
+  </table>
+
+  <h2>11. 청소 및 유지보수</h2>
+  <ul>
+    <li><strong>일상</strong> : 운전 전 수 회 공회전하여 이상 소음·진동 확인. 로드셀/실린더 상태 확인.</li>
+    <li><strong>월간</strong> : 가이드·도금부 윤활, 공압 필터·레귤레이터 드레인/점검, 배선·커넥터 조임 확인.</li>
+    <li><strong>노이즈 대책</strong>(정비 참고) : 솔레노이드 코일 플라이백 다이오드/스너버,
+        <strong>USB 라인 페라이트 코어</strong>, 통신선과 동력선 분리.</li>
+  </ul>
+
+  <h2>12. 고장 처리</h2>
+  <table>
+    <tr><th style="width:48mm">고장</th><th>원인</th><th>조치</th></tr>
+    <tr><td>화면 무표시·미동작</td><td>전원 미연결/차단기 트립</td><td>전원·차단기 확인, 플러그 재연결</td></tr>
+    <tr><td>상단 “구동 차단” 지속</td><td>비상정지/라이트 커튼/구동 허가 회로</td><td>원인 제거 후 안전 복귀</td></tr>
+    <tr><td>통신 끊김·재접속 잦음</td><td>솔레노이드 스위칭 노이즈(USB 재열거)</td><td>USB 페라이트, 솔 스너버, 통신선 분리</td></tr>
+    <tr><td>실린더가 멈추지 않음</td><td>밸브/배선(예: DO COM에 +24V 오배선)</td><td>배선 점검, 싱크 COM=0V, 5/3 중립 확인</td></tr>
+    <tr><td>하중 값 이상</td><td>로드셀 영점/스팬·배선</td><td>영점·스팬 재보정, 4–20 mA 배선 확인</td></tr>
+    <tr><td>자동 시작 안 됨</td><td>셀렉터 MANUAL/구동 차단/알람</td><td>AUTO 확인, 알람 해제, 구동 허가 확인</td></tr>
+  </table>
+
+  <h2>13. 부록</h2>
+  <ul>
+    <li>A. 공압 회로도 [도면]</li>
+    <li>B. 전기 회로도 [도면]</li>
+    <li>C. I/O 맵 (별첨)</li>
+    <li>D. 파라미터 기본값 / 사양 상세 [작성예정]</li>
+  </ul>
+  <p class="muted" style="margin-top:8mm">본 설명서의 내용은 장비 개선에 따라 변경될 수 있습니다.</p>
+</section>
+
+</body>
+</html>
