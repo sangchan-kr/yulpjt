@@ -16,3 +16,4 @@ data/
 calibration.json
 settings.json
 recipes.json
+dist/
