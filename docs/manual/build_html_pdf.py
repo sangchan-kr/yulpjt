@@ -12,6 +12,37 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 HTML = os.path.join(_HERE, "manual.html")
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(_HERE, "반복가압측정기_매뉴얼.pdf")
+APPENDIX_DIR = os.path.join(_HERE, "appendix")   # 여기의 *.pdf 를 정렬해 본문 뒤에 병합
+
+
+def _merge_appendix(pdf_path: str) -> None:
+    """appendix/*.pdf(정렬)를 본문 PDF 뒤에 병합한다. (전장 도면 등 원본 PDF 첨부)"""
+    import glob
+    pdfs = sorted(glob.glob(os.path.join(APPENDIX_DIR, "*.pdf")))
+    if not pdfs:
+        return
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        print("[경고] pypdf 미설치 — 부록 PDF 병합을 건너뜁니다. 'pip install pypdf' 후 재실행하세요.")
+        return
+    w = PdfWriter()
+    w.append(pdf_path)                 # 본문(그대로)
+    for p in pdfs:                     # 부록
+        r = PdfReader(p)
+        for pg in r.pages:
+            # 가로 도면이 세로 페이지에 눕혀 저장된 경우가 많아, 세로 페이지는 270°
+            # 회전해 정방향(가로)으로 세운다. 원래 가로(w>h) 페이지는 그대로 둔다.
+            mb = pg.mediabox
+            if float(mb.height) > float(mb.width):
+                pg.rotate(270)
+            w.add_page(pg)
+    tmp = pdf_path + ".merge.tmp"
+    with open(tmp, "wb") as f:
+        w.write(f)
+    w.close()
+    os.replace(tmp, pdf_path)
+    print(f"[OK] 부록 병합: {', '.join(os.path.basename(p) for p in pdfs)}")
 
 _CANDS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -41,6 +72,7 @@ def main() -> int:
               "덮어쓰기가 막힙니다. 뷰어를 닫고 다시 실행하세요.")
         return 2
     print(f"[OK] {os.path.basename(browser)} -> {OUT}")
+    _merge_appendix(OUT)
     return 0
 
 
