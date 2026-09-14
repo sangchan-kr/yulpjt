@@ -46,6 +46,7 @@ class Controller:
 
         # 통신 재접속(USB 재열거) 발생 횟수 — 노이즈 진단용(임시 표시)
         self.comm_error_count = 0
+        self._comm_fail_streak = 0              # 연속 통신 실패 스캔 수(진짜 두절 판정용)
         self._buzzer_muted = False              # 부저 임시 음소거(알람 해소 시 자동 해제)
 
         # 입력 캐시
@@ -187,6 +188,7 @@ class Controller:
             self._flag_comm_error("입력 읽기(refresh_inputs)")
             return
         self.alarms.discard(Alarm.ADAM_COMM_ERROR)   # 읽기 성공 → 통신 알람 자동 해제
+        self._comm_fail_streak = 0                    # 성공 → 연속 실패 카운터 리셋
         self._read_inputs()
         self._handle_global()
         self._run_state()
@@ -204,16 +206,22 @@ class Controller:
             self._flag_comm_error("출력 쓰기(stage_and_flush)")
 
     def _flag_comm_error(self, where: str = "") -> None:
-        """통신 오류 시: 블로킹 알람 + 액추에이터/진공 명령 OFF. 크래시 없이 다음 스캔에서 복구 시도.
+        """통신 오류 시: 블로킹 알람 + 액추에이터 출력 OFF(그 스캔). 크래시 없이 다음 스캔에 복구 시도.
 
         진입 시점에만 traceback 로깅(스캔 10Hz 스팸 방지). 다음 스캔에서 읽기 성공하면 알람 자동 해제.
+
+        수동 진공 명령(vacuum_command)은 '순간 글리치'로는 끄지 않는다 — ADAM DO 는 마지막
+        출력을 자체 유지하고 읽기 실패 스캔은 flush 를 건너뛰므로 물리 진공은 유지된다. 통신
+        실패가 연속 comm_fail_latch_count 회 이상(진짜 두절)일 때만 진공 명령을 OFF 래치한다.
         """
         if Alarm.ADAM_COMM_ERROR not in self.alarms:   # 오류 진입(엣지)에서만 1회 기록
             self.comm_error_count += 1
             logging.getLogger("ctrl").exception("통신 오류 진입: %s", where)
         self.alarms.add(Alarm.ADAM_COMM_ERROR)
         self.out.actuators_off()
-        self.vacuum_command = False
+        self._comm_fail_streak += 1
+        if self._comm_fail_streak >= self.cfg.comm_fail_latch_count:
+            self.vacuum_command = False               # 지속 두절 → 진공 명령 래치 OFF(자동복원 금지)
 
     # ----------------------------------------------------------------- 입력
     def _read_inputs(self) -> None:
@@ -252,9 +260,8 @@ class Controller:
                 self.state = State.AUTO_IDLE if self.mode_auto else State.MANUAL_IDLE
             self._cmd_safety_reset = False
 
-        # 통신 오류 시에도 진공 명령 래치 OFF (자동복원 금지)
-        if Alarm.ADAM_COMM_ERROR in self.alarms:
-            self.vacuum_command = False
+        # (통신 오류 시 진공 래치 OFF 는 _flag_comm_error 에서 '연속 실패' 조건으로만 처리.
+        #  순간 글리치로는 진공 명령을 끄지 않는다.)
 
         # ERROR 는 원인 제거 후 Alarm Clear 로 복귀 (블로킹 알람만 대상)
         if self.state is State.ERROR and self._cmd_alarm_clear:

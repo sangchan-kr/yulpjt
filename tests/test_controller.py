@@ -680,6 +680,49 @@ def test_exchange_ignored_in_auto():
     assert ctrl.state is State.AUTO_IDLE       # 자동에서는 무시
 
 
+# ---------------------------------------------------------------- 통신 글리치 vs 두절
+def _make_flaky(ctrl):
+    """ctrl.io.refresh_inputs 를 n회 실패시키는 래퍼로 교체. fail 카운트를 돌려준다."""
+    orig = ctrl.io.refresh_inputs
+    state = {"fail": 0}
+
+    def flaky():
+        if state["fail"] > 0:
+            state["fail"] -= 1
+            raise RuntimeError("comm glitch")
+        return orig()
+    ctrl.io.refresh_inputs = flaky
+    return state
+
+
+def test_comm_glitch_keeps_vacuum():
+    # 순간 글리치(임계 미만)는 수동 진공 명령을 끄지 않는다.
+    ctrl, a1, a2, ai, clk = _build(comm_fail_latch_count=3)
+    _di(a1, DI1.SOL_ENABLE_OK, True); _di(a1, DI1.MODE_AUTO, False)
+    ctrl.scan()
+    ctrl.set_vacuum(True); ctrl.scan()
+    assert ctrl.vacuum_command is True and ctrl.out.vacuum_on is True
+    flaky = _make_flaky(ctrl)
+    flaky["fail"] = 2                       # 연속 2회 실패 (< 3)
+    ctrl.scan(); ctrl.scan()
+    assert ctrl.vacuum_command is True      # 유지
+    ctrl.scan()                             # 성공 → streak 리셋 + 진공 재개
+    assert ctrl.vacuum_command is True and ctrl.out.vacuum_on is True
+
+
+def test_comm_sustained_latches_vacuum_off():
+    # 연속 실패가 임계 이상(진짜 두절)이면 진공 명령을 OFF 래치.
+    ctrl, a1, a2, ai, clk = _build(comm_fail_latch_count=3)
+    _di(a1, DI1.SOL_ENABLE_OK, True); _di(a1, DI1.MODE_AUTO, False)
+    ctrl.scan()
+    ctrl.set_vacuum(True); ctrl.scan()
+    assert ctrl.vacuum_command is True
+    flaky = _make_flaky(ctrl)
+    flaky["fail"] = 3                       # 연속 3회 (>= 3)
+    ctrl.scan(); ctrl.scan(); ctrl.scan()
+    assert ctrl.vacuum_command is False     # 두절 → 래치 OFF (재개하려면 다시 눌러야)
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

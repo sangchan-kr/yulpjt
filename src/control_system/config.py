@@ -77,6 +77,9 @@ class Config:
     timeout_ms: int = 400               # Modbus 응답 타임아웃 (300~500)
     retries: int = 2                    # 재시도 (1~3)
     poll_ms: int = 100                  # 폴링 주기 (50~200)
+    # 통신 실패가 이 횟수만큼 '연속'되면 진짜 두절로 보고 수동 진공 명령을 OFF 래치한다.
+    # 순간 노이즈 글리치(1~2스캔, 자동복구)로는 진공을 끊지 않는다. poll_ms×이 값 = 유지시간.
+    comm_fail_latch_count: int = 5      # 0/1 이면 종전처럼 첫 실패에 즉시 OFF
 
     # --- 노드 ID (v1.12 §4) ----------------------------------------------
     node_adam1: int = 1                 # ADAM-4055-C #1 (프레스/스위치/타워)
@@ -131,6 +134,8 @@ class Config:
             overrides["serial_port"] = environ["SERIAL_PORT"]
         if "BAUDRATE" in environ:
             overrides["baudrate"] = int(environ["BAUDRATE"])
+        if "COMM_FAIL_LATCH" in environ:
+            overrides["comm_fail_latch_count"] = int(environ["COMM_FAIL_LATCH"])
         if "FULL_SCALE_KGF" in environ:
             overrides["loadcell_full_scale_kgf"] = float(environ["FULL_SCALE_KGF"])
         if "LOAD_LIMIT_KGF" in environ:
