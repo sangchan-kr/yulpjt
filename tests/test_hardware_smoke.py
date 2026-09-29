@@ -188,6 +188,43 @@ def test_do_stage_flush():
     assert not any(a2.read_do())
 
 
+class _FakeSer:
+    is_open = True
+    def __init__(self, data=None, noise=False):
+        self._data = list(data or [])
+        self._noise = noise
+    def read(self, n=1):
+        if self._noise:
+            return b"x"                      # CR 없는 잡음 무한
+        return self._data.pop(0) if self._data else b""   # 소진 후 타임아웃
+    def reset_input_buffer(self):
+        pass
+    def write(self, b):
+        pass
+
+
+def test_read_until_cr_bounds_noise():
+    """CR 없는 노이즈가 계속 와도 무한 대기하지 않고 통신오류로 종료(장비 정지 방지)."""
+    from control_system.hardware.modbus_hub import AdamCommError, AdamSerialBus
+    bus = AdamSerialBus("COM_X", 9600, mock=False)   # __init__ 은 포트를 열지 않음
+    bus._ser = _FakeSer(noise=True)
+    raised = False
+    try:
+        bus._read_until_cr()
+    except AdamCommError:
+        raised = True
+    assert raised
+
+
+def test_read_until_cr_normal_and_timeout():
+    from control_system.hardware.modbus_hub import AdamSerialBus
+    bus = AdamSerialBus("COM_X", 9600, mock=False)
+    bus._ser = _FakeSer([b"!", b"0", b"1", b"\r"])   # 정상 응답 "!01" + CR
+    assert bus._read_until_cr() == "!01"
+    bus._ser = _FakeSer([])                            # 빈 읽기 → 타임아웃 정상 종료
+    assert bus._read_until_cr() == ""
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -11,8 +11,13 @@
 mock 모드에서는 포트를 열지 않는다(각 모듈이 합성 데이터 생성).
 """
 
+import time
+
 
 class AdamSerialBus:
+    # 정상 DCON 응답은 짧다(8채널 AI 도 ~60바이트). CR 없이 이보다 많이 들어오면
+    # 라인 노이즈(USB 재열거 등)로 보고 통신오류 처리 — 무한 수신(이벤트 루프 hang) 방지.
+    _MAX_RESP_BYTES = 128
     def __init__(
         self,
         port: str,
@@ -120,14 +125,25 @@ class AdamSerialBus:
         raise AdamCommError(f"command 실패 {cmd!r}: {last}")
 
     def _read_until_cr(self) -> str:
+        """응답을 CR 까지 읽는다. CR·타임아웃(빈 읽기)에서 정상 종료.
+
+        노이즈로 CR 없이 바이트가 계속 들어오면 예전엔 무한 루프로 이벤트 루프가
+        멈췄다(장비 정지). 이제 최대 바이트 수와 전체 데드라인으로 상한을 두고,
+        상한 초과 시 AdamCommError 를 던져 상위에서 통신오류 알람으로 처리한다.
+        """
         buf = bytearray()
+        deadline = time.monotonic() + self._timeout * 3   # 개별 read timeout 의 여유 배수
         while True:
             b = self._ser.read(1)
-            if not b:                 # 타임아웃
+            if not b:                 # 타임아웃(빈 읽기)
                 break
             if b == b"\r":
                 break
             buf += b
+            if len(buf) > self._MAX_RESP_BYTES or time.monotonic() > deadline:
+                # CR 없는 과다/지속 수신 = 노이즈 → 통신오류로 알림(무한 대기 방지)
+                raise AdamCommError(
+                    f"CR 없는 과다 수신(노이즈) {len(buf)}B: {bytes(buf[:16])!r}…")
         return buf.decode("ascii", errors="replace").strip()
 
 
