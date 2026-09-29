@@ -162,6 +162,7 @@ class MainWindow(QMainWindow):
         # 유지보수는 하단 네비에 없고 ⚙ 암호로만 진입.
         self._maint_page = MaintenancePage(self.ctrl, self.ctrl.loadcell, self.hub, self.logger.path)
         self._maint_index = self._stack.addWidget(self._maint_page)
+        self._prev_page_index = self._stack.currentIndex()   # 이전 페이지(이탈 판정용)
         self._stack.currentChanged.connect(self._on_page_changed)
         return self._stack
 
@@ -277,15 +278,18 @@ class MainWindow(QMainWindow):
         self.event_log.add("MAINT", "유지보수 진입")
 
     def _on_page_changed(self, index: int) -> None:
-        # 유지보수에서 벗어나면 모든 시험 출력 OFF.
-        if index != self._maint_index:
+        # 유지보수 '페이지에서 나갈 때만' 시험 출력 OFF. (일반 탭 이동에서는 실행하지 않아야
+        # 수동 진공 등이 꺼지지 않는다 — 이전엔 index!=maint 조건이라 모든 탭 이동에서
+        # on_leave 가 불려 진공이 꺼지던 버그.)
+        if self._prev_page_index == self._maint_index and index != self._maint_index:
             self._maint_page.on_leave()
             self._maint_deadline = None
-            # 하단 네비 하이라이트 동기화
-            if index < self._nav_group.buttons().__len__():
-                btn = self._nav_group.button(index)
-                if btn:
-                    btn.setChecked(True)
+        self._prev_page_index = index
+        # 하단 네비 하이라이트 동기화 (유지보수 외 페이지)
+        if index != self._maint_index and index < self._nav_group.buttons().__len__():
+            btn = self._nav_group.button(index)
+            if btn:
+                btn.setChecked(True)
 
     # ---------------------------------------------------------------- 주기 갱신
     def _tick(self) -> None:
