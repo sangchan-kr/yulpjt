@@ -89,21 +89,27 @@ class Controller:
         return self.settings.target_count
 
     # ================================================================= 명령 (HMI)
+    # 사용자 조작은 파일 로그(app.log 'event')에도 남겨 나중에 회수할 수 있게 한다.
     def cmd_safety_reset(self) -> None:
         self._cmd_safety_reset = True
+        logging.getLogger("event").info("사용자: 안전 복귀")
 
     def cmd_buzzer_mute(self) -> None:
         """부저 임시 음소거. 현재 알람이 해소되면 자동 해제(다음 이벤트에 다시 울림)."""
         self._buzzer_muted = True
+        logging.getLogger("event").info("사용자: 부저 정지")
 
     def cmd_alarm_clear(self) -> None:
         self._cmd_alarm_clear = True
+        logging.getLogger("event").info("사용자: 알람 해제")
 
     def cmd_count_reset(self) -> None:
         self._cmd_count_reset = True
+        logging.getLogger("event").info("사용자: 횟수 초기화")
 
     def cmd_load_zero(self) -> None:
         self._cmd_load_zero = True
+        logging.getLogger("event").info("사용자: 하중 영점")
 
     def cmd_exchange_position(self) -> None:
         """교체 위치: 실린더를 상승 센서(CYL_UP_POS)에 닿을 때까지 올린다.
@@ -111,6 +117,7 @@ class Controller:
         수동 대기 상태에서만 시작한다(자동 운전/안전정지/오류 중엔 무시).
         """
         self._cmd_exchange = True
+        logging.getLogger("event").info("사용자: 교체 위치 이동")
 
     def set_vacuum(self, on: bool) -> None:
         """수동 진공 토글. ON 은 허용조건을 만족할 때만 래치된다."""

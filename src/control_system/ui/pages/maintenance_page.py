@@ -5,6 +5,8 @@
 """
 
 import datetime
+import glob
+import logging
 import os
 import shutil
 
@@ -120,7 +122,7 @@ class MaintenancePage(QWidget):
         b_zero = QPushButton("하중 영점"); b_zero.clicked.connect(self._load_zero)
         b_span = QPushButton("배율 교정"); b_span.clicked.connect(self._span)
         b_reconn = QPushButton("통신 재연결"); b_reconn.clicked.connect(self._reconnect)
-        b_export = QPushButton("로그 저장"); b_export.clicked.connect(self._export)
+        b_export = QPushButton("USB로 저장"); b_export.clicked.connect(self._export_usb)
         for i, b in enumerate((b_zero, b_span, b_reconn, b_export)):
             b.setMinimumHeight(46)
             grid.addWidget(b, i // 2, i % 2)
@@ -159,17 +161,56 @@ class MaintenancePage(QWidget):
         except Exception as e:  # noqa: BLE001
             self._msg.setText(f"재연결 실패: {e}")
 
-    def _export(self) -> None:
-        if not os.path.exists(self.run_log_path):
-            self._msg.setText("내보낼 운전 기록이 없습니다.")
+    @staticmethod
+    def _find_usb_mount():
+        """쓰기 가능한 이동식(USB) 마운트 경로를 찾는다. 없으면 None."""
+        cands = []
+        if os.name == "nt":                       # 개발(Windows): 이동식 드라이브만
+            import ctypes
+            import string
+            DRIVE_REMOVABLE = 2
+            for d in string.ascii_uppercase:
+                root = f"{d}:\\"
+                try:
+                    if ctypes.windll.kernel32.GetDriveTypeW(root) == DRIVE_REMOVABLE:
+                        cands.append(root)
+                except Exception:  # noqa: BLE001
+                    pass
+        else:                                     # 파이/리눅스: 자동 마운트 위치
+            for pat in ("/media/*/*", "/media/*", "/run/media/*/*", "/mnt/*"):
+                cands += glob.glob(pat)
+        for c in cands:
+            if os.path.isdir(c) and os.access(c, os.W_OK):
+                return c
+        return None
+
+    def _export_usb(self) -> None:
+        """로그 버퍼를 파일로 덤프한 뒤, data 의 로그(app.log*·run_log*.csv)를 USB로 복사."""
+        for h in logging.getLogger().handlers:    # RAM 버퍼(MemoryHandler) → 파일
+            try:
+                h.flush()
+            except Exception:  # noqa: BLE001
+                pass
+        usb = self._find_usb_mount()
+        if not usb:
+            self._msg.setText("USB를 찾을 수 없습니다. USB 메모리를 꽂고 다시 누르세요.")
+            return
+        data_dir = os.path.dirname(self.run_log_path) or "data"
+        files = sorted(glob.glob(os.path.join(data_dir, "app.log*"))) + \
+            sorted(glob.glob(os.path.join(data_dir, "run_log*.csv")))
+        if not files:
+            self._msg.setText("내보낼 로그가 없습니다.")
             return
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        dst = os.path.join(os.path.dirname(self.run_log_path) or ".", f"run_log_export_{ts}.csv")
+        dst = os.path.join(usb, f"rpt-logs_{ts}")
         try:
-            shutil.copyfile(self.run_log_path, dst)
-            self._msg.setText(f"저장됨: {dst}")
+            os.makedirs(dst, exist_ok=True)
+            for f in files:
+                shutil.copy2(f, dst)
+            self._msg.setText(f"USB 저장 완료: {dst} ({len(files)}개)")
+            logging.getLogger("event").info("사용자: USB 로그 내보내기 → %s", dst)
         except OSError as e:
-            self._msg.setText(f"저장 실패: {e}")
+            self._msg.setText(f"USB 저장 실패: {e}")
 
     def on_leave(self) -> None:
         """페이지 이탈 시 모든 시험 출력 OFF."""

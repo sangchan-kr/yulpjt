@@ -1,9 +1,10 @@
 import logging
 import os
 import sys
-from logging.handlers import RotatingFileHandler
+from logging.handlers import MemoryHandler, RotatingFileHandler
 from os import environ
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from .config import Config, RecipeStore, RuntimeSettings
@@ -20,12 +21,17 @@ SETTINGS_PATH = "settings.json"
 RECIPES_PATH = "recipes.json"
 RUN_LOG_PATH = "data/run_log.csv"
 APP_LOG_PATH = "data/app.log"
+LOG_FLUSH_S = int(environ.get("LOG_FLUSH_S", "600"))   # 로그를 flash 로 덤프하는 주기(초, 기본 10분)
+
+_mem_handler = None   # RAM 버퍼 핸들러 (flush_logs 에서 파일로 덤프)
 
 
 def _setup_logging() -> None:
-    """앱 로그를 data/app.log 에 회전 저장(+stderr). 잡아먹힌 예외/통신 오류 사후 추적용.
+    """앱 로그를 data/app.log 에 저장(+stderr). 잡아먹힌 예외/통신 오류·사용자 동작 추적용.
 
-    유저 journald 가 영속화 안 돼도 현장에서 원인을 남기려면 파일 로깅이 필요하다.
+    SD(flash) 쓰기 횟수를 줄이려 RAM 버퍼(MemoryHandler)에 모았다가 주기적으로만
+    파일에 덤프한다(기본 10분, LOG_FLUSH_S). ERROR 이상은 즉시 덤프(진단 유실 방지),
+    INFO/WARNING(사용자 동작·상태)은 버퍼링 후 일괄 기록. stderr(journald)는 실시간(휘발).
     """
     os.makedirs("data", exist_ok=True)
     root = logging.getLogger()
@@ -33,10 +39,18 @@ def _setup_logging() -> None:
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     fh = RotatingFileHandler(APP_LOG_PATH, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
     fh.setFormatter(fmt)
-    root.addHandler(fh)
+    global _mem_handler
+    _mem_handler = MemoryHandler(capacity=10000, flushLevel=logging.ERROR, target=fh)
+    root.addHandler(_mem_handler)
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
     root.addHandler(sh)
+
+
+def flush_logs() -> None:
+    """RAM 버퍼의 로그를 파일(flash)로 즉시 덤프. (10분 타이머·앱 종료·USB 내보내기 시 호출)"""
+    if _mem_handler is not None:
+        _mem_handler.flush()
 
 
 def _resolve_serial_port(cfg: Config) -> str:
@@ -103,6 +117,13 @@ def main() -> int:
                         settings_path=SETTINGS_PATH, event_log=events, hub=hub,
                         recipes=recipes)
 
+    # 로그 flash 덤프: LOG_FLUSH_S(기본 10분)마다 RAM 버퍼를 파일로. 종료 시에도 덤프.
+    log_timer = QTimer()
+    log_timer.timeout.connect(flush_logs)
+    log_timer.start(LOG_FLUSH_S * 1000)
+    app.aboutToQuit.connect(flush_logs)
+    app._log_timer = log_timer          # GC 방지
+
     # KIOSK=1 이면 mock 이라도 전체화면(장비/파이 터치스크린용, 트레이·타이틀바 덮음).
     kiosk = environ.get("KIOSK", "0") == "1"
 
@@ -150,4 +171,5 @@ def main() -> int:
     try:
         return app.exec()
     finally:
+        flush_logs()        # 종료 시 남은 로그를 파일로
         hub.close()

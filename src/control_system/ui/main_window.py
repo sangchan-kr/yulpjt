@@ -315,25 +315,33 @@ class MainWindow(QMainWindow):
         self._update_overlay()
 
     def _collect_events(self) -> None:
+        # 화면 이벤트 로그(EventLog, RAM) + 중요 이벤트는 파일 로그(app.log, 배치 덤프)에도
+        # 남겨 나중에 내보내기/원격으로 회수할 수 있게 한다. 자동 사이클의 매 단계 상태전환은
+        # 양이 많아 파일에는 남기지 않고 화면(EventLog)에만 둔다.
+        elog = logging.getLogger("event")
         c = self.ctrl
         if c.state is not self._prev_state:
-            # 안전정지·오류 진입은 알람 카테고리로 기록(로그 '알람' 탭). 그 외는 일반 상태전환.
             if c.state is State.SAFETY_STOP:
                 self.event_log.add("SAFETY", "안전 정지 발생")
+                elog.error("안전 정지 발생")
             elif c.state is State.ERROR:
                 causes = ", ".join(sorted(a.value for a in c.alarms)) or "-"
                 self.event_log.add("ERROR", f"오류 정지 ({causes})")
+                elog.error("오류 정지 (%s)", causes)
             else:
                 self.event_log.add("STATE", f"{self._prev_state.value} → {c.state.value}")
             self._prev_state = c.state
         for a in c.alarms - self._prev_alarms:
             self.event_log.add("ALARM", a.value)
+            elog.warning("알람: %s", a.value)
         self._prev_alarms = set(c.alarms)
         if c.vacuum_command != self._prev_vac_cmd:
             self.event_log.add("VACUUM_COMMAND", "ON" if c.vacuum_command else "OFF")
+            elog.info("진공 명령 %s", "ON" if c.vacuum_command else "OFF")
             self._prev_vac_cmd = c.vacuum_command
         for w in c.vacuum_warnings - self._prev_vac_warn:
             self.event_log.add("VACUUM_WARN", w.value)
+            elog.warning("진공 경고: %s", w.value)
         self._prev_vac_warn = set(c.vacuum_warnings)
 
     def _update_topbar(self) -> None:
