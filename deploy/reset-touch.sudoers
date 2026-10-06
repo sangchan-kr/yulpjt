@@ -1,0 +1,5 @@
+# /etc/sudoers.d/reset-touch  (root:root, 0440)
+# HMI 앱(user yul)이 암호 없이 터치 USB 재설정 스크립트만 실행하도록 허용.
+# 설치:  sudo install -m 0440 deploy/reset-touch.sudoers /etc/sudoers.d/reset-touch
+#        sudo visudo -cf /etc/sudoers.d/reset-touch      # 문법 검증
+yul ALL=(root) NOPASSWD: /usr/local/bin/reset-touch.sh

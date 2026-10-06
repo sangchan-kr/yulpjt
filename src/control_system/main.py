@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import sys
 from logging.handlers import MemoryHandler, RotatingFileHandler
 from os import environ
@@ -22,6 +23,8 @@ RECIPES_PATH = "recipes.json"
 RUN_LOG_PATH = "data/run_log.csv"
 APP_LOG_PATH = "data/app.log"
 LOG_FLUSH_S = int(environ.get("LOG_FLUSH_S", "600"))   # 로그를 flash 로 덤프하는 주기(초, 기본 10분)
+# 터치 먹통 복구용 OS 레벨 리셋 스크립트(현장 설치, sudo NOPASSWD). deploy/reset-touch.sh 참고.
+TOUCH_RESET_CMD = environ.get("TOUCH_RESET_CMD", "/usr/local/bin/reset-touch.sh")
 
 _mem_handler = None   # RAM 버퍼 핸들러 (flush_logs 에서 파일로 덤프)
 
@@ -51,6 +54,22 @@ def flush_logs() -> None:
     """RAM 버퍼의 로그를 파일(flash)로 즉시 덤프. (10분 타이머·앱 종료·USB 내보내기 시 호출)"""
     if _mem_handler is not None:
         _mem_handler.flush()
+
+
+def _make_touch_reset(cfg):
+    """터치 USB 재설정 콜백. mock/개발에선 로그만, 실기에선 sudo 스크립트 실행."""
+    def reset() -> None:
+        flush_logs()                        # 리셋 전 로그 보존
+        if cfg.mock_hardware:
+            logging.getLogger("event").warning("터치 USB 재설정(mock) — 실기에선 %s 실행", TOUCH_RESET_CMD)
+            return
+        try:
+            subprocess.run(["sudo", "-n", TOUCH_RESET_CMD], timeout=8,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            logging.getLogger("event").warning("터치 USB 재설정 실행: %s", TOUCH_RESET_CMD)
+        except Exception:
+            logging.getLogger("ctrl").exception("터치 리셋 스크립트 실패: %s", TOUCH_RESET_CMD)
+    return reset
 
 
 def _resolve_serial_port(cfg: Config) -> str:
@@ -111,6 +130,7 @@ def main() -> int:
     settings = RuntimeSettings.load(SETTINGS_PATH, cfg)   # 재부팅 시 파라미터만 복원
     recipes = RecipeStore.load(RECIPES_PATH)              # 운전 조건 레시피 3슬롯
     controller = Controller(cfg, io, loadcell, settings=settings)
+    controller.set_touch_reset_callback(_make_touch_reset(cfg))   # 터치 먹통 복구 제스처
     logger = CsvLogger(RUN_LOG_PATH)
     events = EventLog()
     window = MainWindow(cfg, controller, a1, a2, ai, logger,

@@ -723,6 +723,40 @@ def test_comm_sustained_latches_vacuum_off():
     assert ctrl.vacuum_command is False     # 두절 → 래치 OFF (재개하려면 다시 눌러야)
 
 
+def test_touch_reset_combo_fires_in_auto():
+    ctrl, a1, a2, ai, clk = _build(touch_reset_hold_s=0.2)
+    fired = []
+    ctrl.set_touch_reset_callback(lambda: fired.append(1))
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, True)                 # AUTO
+    ctrl.scan()
+    _di(a1, DI1.MANUAL_UP_PB, True); _di(a1, DI1.MANUAL_DOWN_PB, True)
+    ctrl.scan()                                  # 시작
+    clk.advance(0.25); ctrl.scan()               # 0.2초 이상 유지 → 발동
+    assert fired == [1]
+    clk.advance(0.5); ctrl.scan()                # 계속 눌러도 재발동 없음
+    assert fired == [1]
+    # 손 뗐다 다시 → 재무장 후 재발동
+    _di(a1, DI1.MANUAL_UP_PB, False); _di(a1, DI1.MANUAL_DOWN_PB, False)
+    ctrl.scan()
+    _di(a1, DI1.MANUAL_UP_PB, True); _di(a1, DI1.MANUAL_DOWN_PB, True)
+    ctrl.scan(); clk.advance(0.25); ctrl.scan()
+    assert fired == [1, 1]
+
+
+def test_touch_reset_combo_not_in_manual():
+    ctrl, a1, a2, ai, clk = _build(touch_reset_hold_s=0.2)
+    fired = []
+    ctrl.set_touch_reset_callback(lambda: fired.append(1))
+    _di(a1, DI1.SOL_ENABLE_OK, True)
+    _di(a1, DI1.MODE_AUTO, False)                # MANUAL
+    ctrl.scan()
+    _di(a1, DI1.MANUAL_UP_PB, True); _di(a1, DI1.MANUAL_DOWN_PB, True)
+    ctrl.scan(); clk.advance(0.5); ctrl.scan()
+    assert fired == []                           # 수동에선 발동 안 함
+    assert Alarm.MANUAL_CONFLICT in ctrl.alarms  # 대신 기존 동시입력 알람
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

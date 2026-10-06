@@ -80,6 +80,10 @@ class Config:
     # 통신 실패가 이 횟수만큼 '연속'되면 진짜 두절로 보고 수동 진공 명령을 OFF 래치한다.
     # 순간 노이즈 글리치(1~2스캔, 자동복구)로는 진공을 끊지 않는다. poll_ms×이 값 = 유지시간.
     comm_fail_latch_count: int = 5      # 0/1 이면 종전처럼 첫 실패에 즉시 OFF
+    # 터치 먹통 복구용 물리 제스처: AUTO 에서 수동 상승+하강을 동시에 이 시간(초) 이상
+    # 누르면 터치 USB 재설정 콜백을 호출한다. 0 이하면 비활성. (AUTO 에선 수동 DI 가
+    # 제어에 쓰이지 않아 안전) — env TOUCH_RESET_HOLD 로도 조정.
+    touch_reset_hold_s: float = 2.0
 
     # --- 노드 ID (v1.12 §4) ----------------------------------------------
     node_adam1: int = 1                 # ADAM-4055-C #1 (프레스/스위치/타워)
@@ -136,6 +140,8 @@ class Config:
             overrides["baudrate"] = int(environ["BAUDRATE"])
         if "COMM_FAIL_LATCH" in environ:
             overrides["comm_fail_latch_count"] = int(environ["COMM_FAIL_LATCH"])
+        if "TOUCH_RESET_HOLD" in environ:
+            overrides["touch_reset_hold_s"] = float(environ["TOUCH_RESET_HOLD"])
         if "FULL_SCALE_KGF" in environ:
             overrides["loadcell_full_scale_kgf"] = float(environ["FULL_SCALE_KGF"])
         if "LOAD_LIMIT_KGF" in environ:

@@ -75,6 +75,12 @@ class Controller:
         # 유지보수 DO 시험 오버라이드 (타워/부저/예비 등 안전 채널만)
         self._do_override: dict = {}
 
+        # 터치 먹통 복구 제스처 (AUTO + 수동 상승/하강 동시 길게)
+        self._on_touch_reset = None             # OS 레벨 터치 USB 리셋 콜백 (main 에서 주입)
+        self._combo_start: float | None = None
+        self._combo_fired = False
+        self._beep_until = 0.0                  # 제스처 확인 비프 종료 시각
+
         # HMI 명령 플래그
         self._cmd_safety_reset = False
         self._cmd_alarm_clear = False
@@ -118,6 +124,10 @@ class Controller:
         """
         self._cmd_exchange = True
         logging.getLogger("event").info("사용자: 교체 위치 이동")
+
+    def set_touch_reset_callback(self, cb) -> None:
+        """터치 USB 재설정 콜백 주입(OS 의존). 제스처 감지 시 호출된다."""
+        self._on_touch_reset = cb
 
     def set_vacuum(self, on: bool) -> None:
         """수동 진공 토글. ON 은 허용조건을 만족할 때만 래치된다."""
@@ -197,6 +207,7 @@ class Controller:
         self.alarms.discard(Alarm.ADAM_COMM_ERROR)   # 읽기 성공 → 통신 알람 자동 해제
         self._comm_fail_streak = 0                    # 성공 → 연속 실패 카운터 리셋
         self._read_inputs()
+        self._check_touch_reset_combo()               # 터치 먹통 복구 제스처(DIO 는 살아있음)
         self._handle_global()
         self._run_state()
         self._update_vacuum()
@@ -251,6 +262,33 @@ class Controller:
     def _latch_prev(self) -> None:
         for sig in (DI1.AUTO_START_PB, DI1.AUTO_STOP_PB, DI1.MANUAL_UP_PB, DI1.MANUAL_DOWN_PB):
             self._prev_di[sig] = self.io.di(sig)
+
+    # ----------------------------------------------------------------- 터치 복구 제스처
+    def _check_touch_reset_combo(self) -> None:
+        """AUTO 에서 수동 상승+하강을 touch_reset_hold_s 이상 동시 유지 → 터치 USB 재설정.
+
+        터치가 먹통이어도 물리 버튼 DI 는 살아있어 이 제스처로 복구를 걸 수 있다.
+        AUTO 에선 수동 DI 가 제어에 안 쓰여 부작용이 없다(한 번 발동 후 손 떼야 재무장).
+        """
+        hold = self.cfg.touch_reset_hold_s
+        both = (hold > 0 and self.mode_auto
+                and self.io.di(DI1.MANUAL_UP_PB) and self.io.di(DI1.MANUAL_DOWN_PB))
+        if not both:
+            self._combo_start = None
+            self._combo_fired = False
+            return
+        if self._combo_start is None:
+            self._combo_start = self._now
+        elif not self._combo_fired and (self._now - self._combo_start) >= hold:
+            self._combo_fired = True
+            self._beep_until = self._now + 0.4         # 확인 비프(화면이 먹통이어도 청각 피드백)
+            logging.getLogger("event").warning(
+                "터치 리셋 제스처(수동 상승+하강 %.0f초) → 터치 USB 재설정 시도", hold)
+            if self._on_touch_reset is not None:
+                try:
+                    self._on_touch_reset()
+                except Exception:
+                    logging.getLogger("ctrl").exception("터치 리셋 콜백 실패")
 
     # ----------------------------------------------------------------- 전역
     def _handle_global(self) -> None:
@@ -542,6 +580,8 @@ class Controller:
 
         if self._buzzer_muted:                  # 부저 정지 버튼 눌림 → 이번 이벤트 음소거
             o.buzzer = False
+        if self._now < self._beep_until:        # 터치 리셋 제스처 확인 비프(음소거보다 우선)
+            o.buzzer = True
 
     # ----------------------------------------------------------------- 출력 반영
     def _stage_and_flush(self) -> None:
