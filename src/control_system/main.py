@@ -73,6 +73,31 @@ def _make_touch_reset(cfg):
     return reset
 
 
+def _make_touch_recover(hub):
+    """터치 먹통 복구(수동 제스처용) — 앱을 재실행(re-exec)해 터치를 되살린다.
+
+    현장에서 sudo·노트북·flash 없이 **물리버튼 제스처만으로** 복구하기 위한 수단.
+    터치 프리즈(컴포지터 stuck-touch)·USB 재열거 어느 쪽이든, 프로세스를 새로 띄우면
+    Wayland 터치 연결이 새로 맺어져 복구된다(실측: 재시작 후 터치 정상화).
+
+    주의: 자동 운전 중 발동하면 사이클이 끊기고 진공이 잠깐 OFF·카운트 초기화된다.
+    수동 제스처(작업자 의도)로만 호출되므로 자동 감시에서는 쓰지 않는다.
+    """
+    def recover() -> None:
+        logging.getLogger("event").warning("터치 복구 제스처 → 앱 재실행(re-exec)")
+        flush_logs()                     # 재실행 전 로그 보존
+        try:
+            hub.close()                  # 시리얼 포트를 닫아 새 프로세스가 다시 열 수 있게
+        except Exception:                # noqa: BLE001
+            pass
+        try:
+            os.execv(sys.executable, [sys.executable, "-m", "control_system"])
+        except Exception:                # noqa: BLE001  (re-exec 실패 시 systemd 재시작 유도)
+            logging.getLogger("ctrl").exception("re-exec 실패 — 종료로 systemd 재시작 유도")
+            os._exit(1)
+    return recover
+
+
 def _resolve_serial_port(cfg: Config) -> str:
     """실 시리얼 포트 자동 탐색. USB 재열거로 ttyUSB0↔1 이 바뀌어도 안정적으로 찾는다.
 
@@ -131,8 +156,9 @@ def main() -> int:
     settings = RuntimeSettings.load(SETTINGS_PATH, cfg)   # 재부팅 시 파라미터만 복원
     recipes = RecipeStore.load(RECIPES_PATH)              # 운전 조건 레시피 3슬롯
     controller = Controller(cfg, io, loadcell, settings=settings)
-    touch_reset = _make_touch_reset(cfg)
-    controller.set_touch_reset_callback(touch_reset)              # 터치 먹통 복구 제스처(수동)
+    # 터치 먹통 복구 제스처(수동, 물리버튼): 앱 재실행으로 Qt 터치 연결을 새로 맺어 복구.
+    # sudo·노트북·flash 불필요. (sudo 설치형 USB 재설정 _make_touch_reset 는 보조 수단으로 유지)
+    controller.set_touch_reset_callback(_make_touch_recover(hub))
     logger = CsvLogger(RUN_LOG_PATH)
     events = EventLog()
     window = MainWindow(cfg, controller, a1, a2, ai, logger,
@@ -149,8 +175,8 @@ def main() -> int:
     # 터치 USB 재열거(재접속) 자동 감시 → 카운트(상단바 노란 배지) + 자동 복구(터치 USB 재설정).
     # sudo 불필요(감지는 /sys 읽기만). 실제 USB 재설정은 reset-touch.sh 설치 시에만 동작.
     if not cfg.mock_hardware:
-        touch_watch = TouchWatch(environ.get("TOUCH_VIDPID", "0eef:0005"),
-                                 on_reenum=touch_reset)
+        # 감지·카운트만(무인 자동 재시작 안 함 — 운전 중 진공/카운트 보호). 복구는 수동 제스처로.
+        touch_watch = TouchWatch(environ.get("TOUCH_VIDPID", "0eef:0005"))
 
         def _poll_touch() -> None:
             touch_watch.poll()
