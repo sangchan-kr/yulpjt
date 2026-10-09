@@ -732,15 +732,21 @@ def test_touch_reset_combo_fires_in_auto():
     ctrl.scan()
     _di(a1, DI1.MANUAL_UP_PB, True); _di(a1, DI1.MANUAL_DOWN_PB, True)
     ctrl.scan()                                  # 시작
-    clk.advance(0.25); ctrl.scan()               # 0.2초 이상 유지 → 발동
+    clk.advance(0.25); ctrl.scan()               # 0.2초 이상 유지 → 제스처 발동(비프 시작)
+    assert fired == []                           # 즉시 복구 안 함 — 0.5초 비프 중
+    assert ctrl.out.buzzer is True               # 비프: 부저 ON
+    clk.advance(0.6); ctrl.scan()                # 비프 종료 → 부저 OFF flush → 복구 실행
     assert fired == [1]
+    assert ctrl.out.buzzer is False              # 부저 끄고 재부팅
     clk.advance(0.5); ctrl.scan()                # 계속 눌러도 재발동 없음
     assert fired == [1]
-    # 손 뗐다 다시 → 재무장 후 재발동
+    # 손 뗐다 다시 → 재무장 후 재발동(비프 → 복구)
     _di(a1, DI1.MANUAL_UP_PB, False); _di(a1, DI1.MANUAL_DOWN_PB, False)
     ctrl.scan()
     _di(a1, DI1.MANUAL_UP_PB, True); _di(a1, DI1.MANUAL_DOWN_PB, True)
     ctrl.scan(); clk.advance(0.25); ctrl.scan()
+    assert fired == [1]                          # 아직 비프 중
+    clk.advance(0.6); ctrl.scan()
     assert fired == [1, 1]
 
 

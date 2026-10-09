@@ -80,6 +80,7 @@ class Controller:
         self._combo_start: float | None = None
         self._combo_fired = False
         self._beep_until = 0.0                  # 제스처 확인 비프 종료 시각
+        self._touch_reset_at: float | None = None   # 비프 후 복구(재부팅) 실행 예정 시각
         self.touch_reenum_count = 0             # 터치 USB 재열거(재접속) 횟수 — TouchWatch 가 갱신(모니터링용)
 
         # HMI 명령 플래그
@@ -224,6 +225,16 @@ class Controller:
         except Exception:                       # 출력 쓰기 통신 오류
             self._flag_comm_error("출력 쓰기(stage_and_flush)")
 
+        # 터치 복구 제스처: 0.5초 비프가 끝나고 부저 OFF 가 위 flush 로 ADAM 에 반영된 뒤
+        # 실행(재부팅). 비프 중에는 대기한다.
+        if self._touch_reset_at is not None and self._now >= self._touch_reset_at:
+            self._touch_reset_at = None
+            if self._on_touch_reset is not None:
+                try:
+                    self._on_touch_reset()
+                except Exception:               # noqa: BLE001
+                    logging.getLogger("ctrl").exception("터치 리셋 콜백 실패")
+
     def _flag_comm_error(self, where: str = "") -> None:
         """통신 오류 시: 블로킹 알람 + 액추에이터 출력 OFF(그 스캔). 크래시 없이 다음 스캔에 복구 시도.
 
@@ -282,14 +293,13 @@ class Controller:
             self._combo_start = self._now
         elif not self._combo_fired and (self._now - self._combo_start) >= hold:
             self._combo_fired = True
-            self._beep_until = self._now + 0.4         # 확인 비프(화면이 먹통이어도 청각 피드백)
+            # 부저를 0.5초만 울리고(청각 피드백) → 끈 뒤 → 복구(재부팅) 실행. 바로 재부팅하면
+            # 부저 OFF 가 ADAM 에 flush 되기 전에 앱이 죽어 부저가 켜진 채로 남으므로,
+            # 비프 종료(0.5s) 후 한 스캔 더(0.6s) 지나 OFF flush 가 반영된 뒤 실행한다.
+            self._beep_until = self._now + 0.5
+            self._touch_reset_at = self._now + 0.6
             logging.getLogger("event").warning(
-                "터치 리셋 제스처(수동 상승+하강 %.0f초) → 터치 USB 재설정 시도", hold)
-            if self._on_touch_reset is not None:
-                try:
-                    self._on_touch_reset()
-                except Exception:
-                    logging.getLogger("ctrl").exception("터치 리셋 콜백 실패")
+                "터치 리셋 제스처(수동 상승+하강 %.0f초) → 0.5초 비프 후 복구(재부팅)", hold)
 
     # ----------------------------------------------------------------- 전역
     def _handle_global(self) -> None:
