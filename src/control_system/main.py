@@ -15,6 +15,7 @@ from .hardware.adam4055 import Adam4055
 from .hardware.loadcell import LoadCell
 from .hardware.modbus_hub import ModbusHub
 from .hardware.signals import IO, DI1, DI2
+from .hardware.touch_watch import TouchWatch
 from .ui.logging_csv import CsvLogger, EventLog
 from .ui.main_window import MainWindow
 
@@ -130,7 +131,8 @@ def main() -> int:
     settings = RuntimeSettings.load(SETTINGS_PATH, cfg)   # 재부팅 시 파라미터만 복원
     recipes = RecipeStore.load(RECIPES_PATH)              # 운전 조건 레시피 3슬롯
     controller = Controller(cfg, io, loadcell, settings=settings)
-    controller.set_touch_reset_callback(_make_touch_reset(cfg))   # 터치 먹통 복구 제스처
+    touch_reset = _make_touch_reset(cfg)
+    controller.set_touch_reset_callback(touch_reset)              # 터치 먹통 복구 제스처(수동)
     logger = CsvLogger(RUN_LOG_PATH)
     events = EventLog()
     window = MainWindow(cfg, controller, a1, a2, ai, logger,
@@ -143,6 +145,21 @@ def main() -> int:
     log_timer.start(LOG_FLUSH_S * 1000)
     app.aboutToQuit.connect(flush_logs)
     app._log_timer = log_timer          # GC 방지
+
+    # 터치 USB 재열거(재접속) 자동 감시 → 카운트(상단바 노란 배지) + 자동 복구(터치 USB 재설정).
+    # sudo 불필요(감지는 /sys 읽기만). 실제 USB 재설정은 reset-touch.sh 설치 시에만 동작.
+    if not cfg.mock_hardware:
+        touch_watch = TouchWatch(environ.get("TOUCH_VIDPID", "0eef:0005"),
+                                 on_reenum=touch_reset)
+
+        def _poll_touch() -> None:
+            touch_watch.poll()
+            controller.touch_reenum_count = touch_watch.count
+
+        touch_timer = QTimer()
+        touch_timer.timeout.connect(_poll_touch)
+        touch_timer.start(int(environ.get("TOUCH_WATCH_MS", "1000")))
+        app._touch_timer = touch_timer  # GC 방지
 
     # KIOSK=1 이면 mock 이라도 전체화면(장비/파이 터치스크린용, 트레이·타이틀바 덮음).
     kiosk = environ.get("KIOSK", "0") == "1"

@@ -95,6 +95,11 @@ class MainWindow(QMainWindow):
         self._comm_badge.setStyleSheet(
             "background:#fdeeee; color:#c0392b; font-weight:800; font-size:14px;"
             "padding:3px 10px; border-radius:11px;")
+        # [임시/테스트] 터치 USB 재열거 횟수 — 노이즈 진단용(노란 배경)
+        self._touch_badge = QLabel("터치 0")
+        self._touch_badge.setStyleSheet(
+            "background:#fcefc7; color:#8a5a12; font-weight:800; font-size:14px;"
+            "padding:3px 10px; border-radius:11px;")
         self._clock = QLabel("")
         self._clock.setObjectName("clock")
         gear = QPushButton("⚙")
@@ -107,6 +112,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(self._state_badge)
         lay.addSpacing(10)
         lay.addWidget(self._comm_badge)
+        lay.addWidget(self._touch_badge)
         lay.addStretch(1)
         lay.addWidget(self._clock)
         lay.addSpacing(10)
@@ -351,7 +357,8 @@ class MainWindow(QMainWindow):
         text, variant = self._state_badge_of(c.state)
         self._state_badge.setText(text)
         self._state_badge.setStyleSheet(theme.badge_qss(variant))
-        self._comm_badge.setText(f"재접속 {c.comm_error_count}")   # [임시] 재열거 횟수
+        self._comm_badge.setText(f"재접속 {c.comm_error_count}")   # [임시] 통신 재열거 횟수
+        self._touch_badge.setText(f"터치 {getattr(c, 'touch_reenum_count', 0)}")  # [임시] 터치 재열거
         self._clock.setText(datetime.datetime.now().strftime("%Y-%m-%d  %H:%M"))
 
     @staticmethod

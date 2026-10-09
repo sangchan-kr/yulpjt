@@ -80,6 +80,7 @@ class Controller:
         self._combo_start: float | None = None
         self._combo_fired = False
         self._beep_until = 0.0                  # 제스처 확인 비프 종료 시각
+        self.touch_reenum_count = 0             # 터치 USB 재열거(재접속) 횟수 — TouchWatch 가 갱신(모니터링용)
 
         # HMI 명령 플래그
         self._cmd_safety_reset = False
