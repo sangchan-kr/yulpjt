@@ -73,28 +73,29 @@ def _make_touch_reset(cfg):
     return reset
 
 
-def _make_touch_recover(hub):
-    """터치 먹통 복구(수동 제스처용) — 앱을 재실행(re-exec)해 터치를 되살린다.
+def _make_touch_recover(cfg):
+    """터치 먹통 복구(수동 제스처용) — 파이를 재부팅한다.
 
-    현장에서 sudo·노트북·flash 없이 **물리버튼 제스처만으로** 복구하기 위한 수단.
-    터치 프리즈(컴포지터 stuck-touch)·USB 재열거 어느 쪽이든, 프로세스를 새로 띄우면
-    Wayland 터치 연결이 새로 맺어져 복구된다(실측: 재시작 후 터치 정상화).
+    현장 진단 결과 이 터치 먹통(노이즈로 입력 스택이 '한 지점에 눌림' 상태로 고착)은
+    앱 재실행·USB 재열거(케이블 재연결)로는 안 지워지고 **재부팅으로만** 복구된다.
+    앱이 도는 systemd --user 세션은 polkit allow_active=yes 라 **sudo 없이 재부팅 가능**
+    (CanReboot=yes 확인됨). 따라서 물리버튼 제스처(AUTO + 수동 상승·하강 2초)만으로
+    노트북·sudo·전원스위치 없이 터치를 복구할 수 있다.
 
-    주의: 자동 운전 중 발동하면 사이클이 끊기고 진공이 잠깐 OFF·카운트 초기화된다.
-    수동 제스처(작업자 의도)로만 호출되므로 자동 감시에서는 쓰지 않는다.
+    주의: 재부팅이므로 운전 중이면 사이클 중단·카운트 초기화. 의도적 2초 동시누름
+    제스처로만 호출된다(오발동 방지). 근본 해결은 노이즈 억제(하드웨어).
     """
     def recover() -> None:
-        logging.getLogger("event").warning("터치 복구 제스처 → 앱 재실행(re-exec)")
-        flush_logs()                     # 재실행 전 로그 보존
+        logging.getLogger("event").warning("터치 복구 제스처 → 시스템 재부팅")
+        flush_logs()                     # 재부팅 전 로그 보존(flash)
+        if cfg.mock_hardware:
+            logging.getLogger("event").warning("재부팅(mock) — 실기에서만 실제 재부팅")
+            return
         try:
-            hub.close()                  # 시리얼 포트를 닫아 새 프로세스가 다시 열 수 있게
+            subprocess.run(["systemctl", "reboot"], timeout=10,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:                # noqa: BLE001
-            pass
-        try:
-            os.execv(sys.executable, [sys.executable, "-m", "control_system"])
-        except Exception:                # noqa: BLE001  (re-exec 실패 시 systemd 재시작 유도)
-            logging.getLogger("ctrl").exception("re-exec 실패 — 종료로 systemd 재시작 유도")
-            os._exit(1)
+            logging.getLogger("ctrl").exception("재부팅 요청 실패")
     return recover
 
 
@@ -156,9 +157,9 @@ def main() -> int:
     settings = RuntimeSettings.load(SETTINGS_PATH, cfg)   # 재부팅 시 파라미터만 복원
     recipes = RecipeStore.load(RECIPES_PATH)              # 운전 조건 레시피 3슬롯
     controller = Controller(cfg, io, loadcell, settings=settings)
-    # 터치 먹통 복구 제스처(수동, 물리버튼): 앱 재실행으로 Qt 터치 연결을 새로 맺어 복구.
-    # sudo·노트북·flash 불필요. (sudo 설치형 USB 재설정 _make_touch_reset 는 보조 수단으로 유지)
-    controller.set_touch_reset_callback(_make_touch_recover(hub))
+    # 터치 먹통 복구 제스처(수동, 물리버튼): 재부팅으로 복구(이 증상은 재부팅으로만 지워짐).
+    # 앱 systemd --user 세션은 sudo 없이 재부팅 가능(polkit allow_active=yes).
+    controller.set_touch_reset_callback(_make_touch_recover(cfg))
     logger = CsvLogger(RUN_LOG_PATH)
     events = EventLog()
     window = MainWindow(cfg, controller, a1, a2, ai, logger,
