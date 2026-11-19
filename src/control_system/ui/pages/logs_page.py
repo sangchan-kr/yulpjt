@@ -8,7 +8,8 @@ import os
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
+    QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+    QVBoxLayout, QWidget,
 )
 
 # 이벤트 코드 분류: 알람 탭(문제/경고/안전정지/오류) vs 이벤트 탭(상태전환·조작).
@@ -56,7 +57,14 @@ class LogsPage(QWidget):
         self._body = QLabel("")
         self._body.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._body.setStyleSheet("font-size:15px; color:#28323f; line-height:170%;")
-        cl.addWidget(self._body, 1)
+        # 긴 로그(최대 60줄)가 창 높이를 밀어 하단 네비가 커지/안 줄어드는 문제 방지:
+        # 본문을 스크롤 영역에 담아 페이지 높이를 카드 안으로 가둔다(초과분은 스크롤).
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea{background:transparent;} QLabel{background:transparent;}")
+        scroll.setWidget(self._body)
+        cl.addWidget(scroll, 1)
         root.addWidget(card, 1)
 
     def _set_tab(self, idx: int) -> None:
