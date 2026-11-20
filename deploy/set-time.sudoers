@@ -1,0 +1,5 @@
+# /etc/sudoers.d/set-time  (root:root, 0440)
+# HMI 앱(user yul)이 암호 없이 시간설정 헬퍼만 실행하도록 허용.
+# 설치:  sudo install -m 0440 deploy/set-time.sudoers /etc/sudoers.d/set-time
+#        sudo visudo -cf /etc/sudoers.d/set-time
+yul ALL=(root) NOPASSWD: /usr/local/bin/set-time.sh
